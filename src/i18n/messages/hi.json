@@ -1,0 +1,15 @@
+{
+  "appName": "एग्रीविज़न AI",
+  "tagline": "स्मार्ट खेती के लिए एक मंच",
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "farms": "मेरे खेत",
+    "crops": "फ़सलें",
+    "diseaseDetection": "रोग पहचान",
+    "plantIdentification": "पौधे की पहचान",
+    "weather": "मौसम",
+    "irrigation": "सिंचाई सलाहकार",
+    "reports": "रिपोर्ट",
+    "settings": "सेटिंग्स"
+  }
+}

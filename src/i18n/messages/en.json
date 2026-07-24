@@ -1,0 +1,15 @@
+{
+  "appName": "AgriVision AI",
+  "tagline": "One Platform for Smart Farming",
+  "nav": {
+    "dashboard": "Dashboard",
+    "farms": "My Farms",
+    "crops": "Crops",
+    "diseaseDetection": "Disease Detection",
+    "plantIdentification": "Plant Identification",
+    "weather": "Weather",
+    "irrigation": "Irrigation Advisor",
+    "reports": "Reports",
+    "settings": "Settings"
+  }
+}

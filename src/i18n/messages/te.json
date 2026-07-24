@@ -1,0 +1,15 @@
+{
+  "appName": "అగ్రివిజన్ AI",
+  "tagline": "స్మార్ట్ వ్యవసాయం కోసం ఒకే వేదిక",
+  "nav": {
+    "dashboard": "డాష్‌బోర్డ్",
+    "farms": "నా పొలాలు",
+    "crops": "పంటలు",
+    "diseaseDetection": "వ్యాధి గుర్తింపు",
+    "plantIdentification": "మొక్కల గుర్తింపు",
+    "weather": "వాతావరణం",
+    "irrigation": "సాగునీటి సలహాదారు",
+    "reports": "నివేదికలు",
+    "settings": "సెట్టింగ్‌లు"
+  }
+}

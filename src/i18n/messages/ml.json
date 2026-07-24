@@ -1,0 +1,15 @@
+{
+  "appName": "അഗ്രിവിഷൻ AI",
+  "tagline": "സ്മാർട്ട് കൃഷിക്കായുള്ള ഒരു പ്ലാറ്റ്ഫോം",
+  "nav": {
+    "dashboard": "ഡാഷ്‌ബോർഡ്",
+    "farms": "എന്റെ ഫാമുകൾ",
+    "crops": "വിളകൾ",
+    "diseaseDetection": "രോഗ നിർണ്ണയം",
+    "plantIdentification": "സസ്യ തിരിച്ചറിയൽ",
+    "weather": "കാലാവസ്ഥ",
+    "irrigation": "ജലസേചന ഉപദേശകൻ",
+    "reports": "റിപ്പോർട്ടുകൾ",
+    "settings": "സജ്ജീകരണങ്ങൾ"
+  }
+}

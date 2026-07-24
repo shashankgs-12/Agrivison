@@ -1,0 +1,15 @@
+{
+  "appName": "ಅಗ್ರಿವಿಷನ್ AI",
+  "tagline": "ಸ್ಮಾರ್ಟ್ ಕೃಷಿಗಾಗಿ ಒಂದು ವೇದಿಕೆ",
+  "nav": {
+    "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    "farms": "ನನ್ನ ಜಮೀನುಗಳು",
+    "crops": "ಬೆಳೆಗಳು",
+    "diseaseDetection": "ರೋಗ ಪತ್ತೆ",
+    "plantIdentification": "ಸಸ್ಯ ಗುರುತಿಸುವಿಕೆ",
+    "weather": "ಹವಾಮಾನ",
+    "irrigation": "ನೀರಾವರಿ ಸಲಹೆಗಾರ",
+    "reports": "ವರದಿಗಳು",
+    "settings": "ಸಂಯೋಜನೆಗಳು"
+  }
+}

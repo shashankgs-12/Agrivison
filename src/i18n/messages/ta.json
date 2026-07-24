@@ -1,0 +1,15 @@
+{
+  "appName": "அக்ரிவிஷன் AI",
+  "tagline": "நவீன விவசாயத்திற்கான ஒரே தளம்",
+  "nav": {
+    "dashboard": "டாஷ்போர்டு",
+    "farms": "என் பண்ணைகள்",
+    "crops": "பயிர்கள்",
+    "diseaseDetection": "நோய் கண்டறிதல்",
+    "plantIdentification": "தாவர அடையாளங்காணல்",
+    "weather": "வானிலை",
+    "irrigation": "நீர்ப்பாசன ஆலோசகர்",
+    "reports": "அறிக்கைகள்",
+    "settings": "அமைப்புகள்"
+  }
+}
