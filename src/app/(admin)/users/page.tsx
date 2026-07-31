@@ -4,14 +4,23 @@ import React from "react";
 import { Users, Search, Filter, Shield, MoreVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-const MOCK_USERS = [
-  { id: "u-1", name: "Ramesh Patel", email: "ramesh@gmail.com", role: "farmer", region: "Mandya, KA", status: "Active" },
-  { id: "u-2", name: "Dr. Ananya Rao", email: "ananya.rao@agri.gov.in", role: "agriculture_officer", region: "Mysuru, KA", status: "Active" },
-  { id: "u-3", name: "Suresh Gowda", email: "suresh@farm.org", role: "farmer", region: "Hassan, KA", status: "Active" },
-  { id: "u-4", name: "Vikram Singh", email: "vikram@admin.ai", role: "admin", region: "Bengaluru, KA", status: "Active" },
-];
+import { useAuthStore } from "@/stores/auth-store";
 
 export default function AdminUsersPage() {
+  const { user } = useAuthStore();
+
+  const userList = user
+    ? [
+        {
+          id: user.uid,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          region: user.location || "GPS Location Active",
+          status: "Active Session",
+        },
+      ]
+    : [];
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       <div>
@@ -46,7 +55,7 @@ export default function AdminUsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {MOCK_USERS.map((u) => (
+            {userList.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <td className="p-3">
                   <p className="font-bold text-slate-900 dark:text-white">{u.name}</p>

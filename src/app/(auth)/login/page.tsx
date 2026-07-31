@@ -12,6 +12,7 @@ import {
   Phone,
   Globe,
   CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,20 +29,26 @@ export default function LoginPage() {
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg(null);
 
-    setTimeout(() => {
-      login(email || "farmer@agrivision.ai");
+    try {
+      const targetIdentifier = loginMethod === "email" ? email : (phone ? `${phone.replace(/[^0-9]/g, "")}@agrivision.ai` : "farmer@agrivision.ai");
+      login(targetIdentifier, password);
       setIsLoading(false);
       setSuccessMessage(true);
 
       setTimeout(() => {
         router.push("/dashboard");
       }, 600);
-    }, 400);
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err.message || "Sign in failed. Please try again.");
+    }
   };
 
   return (
@@ -187,15 +194,32 @@ export default function LoginPage() {
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
         </div>
 
+        {/* Error Banner */}
+        {errorMsg && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {errorMsg}
+          </div>
+        )}
+
         {/* Google SSO */}
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className="w-full font-bold cursor-pointer"
           size="lg"
           onClick={() => {
-            login(email || "google@agrivision.ai");
-            router.push("/dashboard");
+            setIsLoading(true);
+            try {
+              login(email || "google.farmer@agrivision.ai");
+              setSuccessMessage(true);
+              setTimeout(() => {
+                router.push("/dashboard");
+              }, 400);
+            } catch (err: any) {
+              setIsLoading(false);
+              setErrorMsg("Google authentication failed. Please try again.");
+            }
           }}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />

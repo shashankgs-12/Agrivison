@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface UserAccount {
   uid: string;
@@ -21,49 +22,54 @@ interface AuthState {
     phone?: string;
     role: "farmer" | "agriculture_officer" | "admin";
   }) => UserAccount;
-  login: (email: string) => UserAccount;
+  login: (email: string, pass?: string) => UserAccount;
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: {
-    uid: "usr-1",
-    name: "Ramesh Patel",
-    email: "ramesh@agrivision.ai",
-    phone: "+91 9880651312",
-    role: "farmer",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    location: "Mandya District, Karnataka",
-    subscription: "Premium",
-  },
-  isAuthenticated: true,
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
-  createAccount: (details) => {
-    const newUser: UserAccount = {
-      uid: `usr-${Date.now()}`,
-      name: details.name || "Farmer",
-      email: details.email,
-      phone: details.phone,
-      role: details.role || "farmer",
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(details.name)}`,
-      location: "Mandya District, KA",
-      subscription: "Free",
-    };
-    set({ user: newUser, isAuthenticated: true });
-    return newUser;
-  },
-  login: (email) => {
-    const loggedUser: UserAccount = {
-      uid: `usr-${Date.now()}`,
-      name: email.split("@")[0] || "Farmer",
-      email: email,
-      role: "farmer",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-      location: "Mandya District, KA",
-      subscription: "Premium",
-    };
-    set({ user: loggedUser, isAuthenticated: true });
-    return loggedUser;
-  },
-  logout: () => set({ user: null, isAuthenticated: false }),
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      createAccount: (details) => {
+        const uid = `usr-${Date.now()}`;
+        const newUser: UserAccount = {
+          uid,
+          name: details.name || "Farmer",
+          email: details.email || `${uid}@agrivision.ai`,
+          phone: details.phone || "",
+          role: details.role || "farmer",
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(details.name || "Farmer")}`,
+          location: "GPS Location Active",
+          subscription: "Free Plan",
+        };
+        set({ user: newUser, isAuthenticated: true });
+        return newUser;
+      },
+      login: (emailInput) => {
+        const email = emailInput && emailInput.trim() ? emailInput.trim() : "farmer@agrivision.ai";
+        const uid = `usr-${btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12)}`;
+        const namePart = email.includes("@") ? email.split("@")[0] : email;
+        const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+
+        const loggedUser: UserAccount = {
+          uid,
+          name: formattedName || "Farmer",
+          email: email,
+          role: "farmer",
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formattedName)}`,
+          location: "GPS Location Active",
+          subscription: "Premium",
+        };
+        set({ user: loggedUser, isAuthenticated: true });
+        return loggedUser;
+      },
+      logout: () => set({ user: null, isAuthenticated: false }),
+    }),
+    {
+      name: "agrivision-auth-storage",
+    }
+  )
+);
+

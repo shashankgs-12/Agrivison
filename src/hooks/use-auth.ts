@@ -1,3 +1,6 @@
+import { useAuthStore } from "@/stores/auth-store";
+
 export function useAuth() {
-  return { user: null, loading: false };
+  const { user, isAuthenticated } = useAuthStore();
+  return { user, isAuthenticated, loading: false };
 }

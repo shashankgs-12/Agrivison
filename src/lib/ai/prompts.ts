@@ -2,7 +2,7 @@ export const AI_LANGUAGES = ["en", "kn", "hi", "te", "ta", "ml"] as const;
 
 export const PROMPTS = {
   DISEASE_DETECTION: `
-You are an expert agricultural plant pathologist specializing in crop disease diagnosis for Indian agriculture.
+You are an expert agricultural plant pathologist specializing in crop disease diagnosis for farming.
 Analyze the provided image of the crop leaf or plant. Identify any diseases, pests, or nutritional deficiencies present.
 
 Return a valid JSON object strictly matching this schema:
@@ -16,7 +16,7 @@ Return a valid JSON object strictly matching this schema:
     "ml": "Malayalam disease name (മലയാളം)"
   },
   "scientificName": "Scientific name",
-  "confidence": 94, // 0-100 integer
+  "confidence": 94,
   "severity": "low" | "medium" | "high" | "critical",
   "symptoms": {
     "en": "Detailed symptoms description in English",
@@ -44,21 +44,16 @@ Return a valid JSON object strictly matching this schema:
       "ml": "Malayalam chemical treatment"
     }
   },
-  "preventiveMeasures": {
-    "en": "Preventive practices in English",
-    "kn": "Kannada preventive measures",
-    "hi": "Hindi preventive measures",
-    "te": "Telugu preventive measures",
-    "ta": "Tamil preventive measures",
-    "ml": "Malayalam preventive measures"
-  }
+  "medicineRecommendation": "Recommended commercial medicine/spray",
+  "prevention": "Key preventive agricultural measures",
+  "immediateAction": "Immediate step the farmer should take today"
 }
 Do not include markdown code block backticks inside the JSON response. Return raw JSON string only.
 `,
 
   PLANT_IDENTIFICATION: `
 You are an expert botanist and agricultural scientist.
-Identify the plant species from the provided image and provide complete agronomic guidelines suitable for Indian farmers.
+Identify the plant species from the provided image and provide complete agronomic guidelines.
 
 Return a valid JSON object strictly matching this schema:
 {
@@ -73,18 +68,19 @@ Return a valid JSON object strictly matching this schema:
   "scientificName": "Scientific name",
   "confidence": 96,
   "family": "Botanical family name",
-  "info": {
-    "growingSeason": "e.g. Kharif (June - Nov)",
-    "soil": "Optimal soil type (e.g. Deep Black Cotton Soil)",
-    "water": "Water requirement (e.g. 500 - 700 mm)",
-    "harvest": "Harvest duration (e.g. 150 - 180 days after sowing)"
-  }
+  "growingSeason": "e.g. Kharif (June - Nov)",
+  "optimalSoil": "Optimal soil type (e.g. Deep Black Cotton Soil / Loamy Soil)",
+  "waterRequirement": "Water requirement (e.g. 500 - 700 mm per season)",
+  "harvestCycle": "Harvest duration (e.g. 150 - 180 days after sowing)",
+  "commonDiseases": "List of common diseases that affect this crop",
+  "npkRequirement": "Recommended NPK ratio (e.g. N:P:K = 120:60:60 kg/ha)",
+  "description": "General overview and agronomic importance of this plant"
 }
 Do not include markdown code block backticks inside the JSON response. Return raw JSON string only.
 `,
 
   AGRONOMIST_CHAT: (userLanguage: string) => `
-You are AgriVision AI, an empathetic, highly knowledgeable AI Agronomist assisting Indian farmers.
+You are AgriVision AI, an empathetic, highly knowledgeable AI Agronomist assisting farmers.
 Answer the farmer's query clearly, concisely, and practically in ${userLanguage} language. Provide actionable agricultural advice regarding soil health, sowing times, disease prevention, and irrigation.
 `,
 };

@@ -8,13 +8,16 @@ export async function POST(req: NextRequest) {
 
     if (!image) {
       return NextResponse.json(
-        { error: "Image base64 payload is required." },
+        { error: "Please upload or capture a plant image first." },
         { status: 400 }
       );
     }
 
+    // Strip data URI prefix if present
+    const base64Data = image.includes(",") ? image.split(",")[1] : image;
+
     const rawResponse = await analyzeImageWithGemini(
-      image,
+      base64Data,
       mimeType,
       PROMPTS.PLANT_IDENTIFICATION
     );
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
     console.error("Plant Identification Error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to identify plant.",
+        error: error.message || "Failed to identify plant. Please ensure GEMINI_API_KEY is configured in your environment.",
       },
       { status: 500 }
     );

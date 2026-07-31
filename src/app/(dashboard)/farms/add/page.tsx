@@ -2,215 +2,191 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   MapPin,
-  Navigation,
-  Layers,
-  Satellite,
   Save,
   Footprints,
   PenTool,
   Locate,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils/cn";
+import { useFarmStore } from "@/stores/farm-store";
+import { useAuthStore } from "@/stores/auth-store";
+
+const InteractiveFarmMap = dynamic(() => import("@/components/maps/leaflet-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[420px] w-full bg-slate-100 rounded-2xl flex items-center justify-center text-xs text-slate-500 font-bold dark:bg-slate-800 animate-pulse">
+      Initializing Interactive GPS Map...
+    </div>
+  ),
+});
 
 export default function AddFarmPage() {
-  const [mode, setMode] = useState<"walk" | "draw">("walk");
-  const [isRecording, setIsRecording] = useState(false);
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const addFarm = useFarmStore((state) => state.addFarm);
+
+  const [farmName, setFarmName] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
+  const [soilType, setSoilType] = useState("Loamy Soil");
+  const [waterSource, setWaterSource] = useState("Borewell");
+  const [areaAcres, setAreaAcres] = useState<number>(5.0);
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number }>({
+    lat: 12.9716,
+    lng: 77.5946,
+  });
+
+  const handleLocationSelect = (data: { lat: number; lng: number; address: string }) => {
+    setCoordinates({ lat: data.lat, lng: data.lng });
+    setLocationAddress(data.address);
+  };
+
+  const handleSaveFarm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!farmName.trim()) return;
+
+    addFarm({
+      ownerId: user?.uid,
+      name: farmName,
+      area: areaAcres || 5.0,
+      location: locationAddress || `${coordinates.lat.toFixed(3)}°, ${coordinates.lng.toFixed(3)}°`,
+      status: "Healthy",
+      soilType,
+      waterSource,
+      coordinates,
+    });
+
+    router.push("/farms");
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/farms">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4" />
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Farms
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight dark:text-white">
-            Add New Farm
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight dark:text-white flex items-center gap-2">
+            <MapPin className="h-6 w-6 text-emerald-600" />
+            Add New Farm Land
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Map your farm boundary using GPS or drawing
+            Click on map to drop pin or draw boundary polygon for reverse geocoding
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map Area */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            {/* Map toolbar */}
-            <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex bg-slate-100 rounded-lg p-0.5 dark:bg-slate-800">
-                  <button
-                    onClick={() => setMode("walk")}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all",
-                      mode === "walk"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                    )}
-                  >
-                    <Footprints className="h-3.5 w-3.5" />
-                    Walk GPS
-                  </button>
-                  <button
-                    onClick={() => setMode("draw")}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all",
-                      mode === "draw"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                    )}
-                  >
-                    <PenTool className="h-3.5 w-3.5" />
-                    Draw on Map
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button className="text-[10px] font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md flex items-center gap-1 hover:bg-slate-200 transition-colors dark:bg-slate-800 dark:text-slate-300">
-                  <Layers className="h-3 w-3" />
-                  Map
-                </button>
-                <button className="text-[10px] font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md flex items-center gap-1 hover:bg-slate-200 transition-colors dark:bg-slate-800 dark:text-slate-300">
-                  <Satellite className="h-3 w-3" />
-                  Satellite
-                </button>
-              </div>
+        <div className="lg:col-span-2 space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Locate className="h-4 w-4 text-emerald-600" />
+                Select Farm Location & Draw Polygon Boundary
+              </h3>
             </div>
 
-            {/* Map placeholder */}
-            <div className="relative h-96 bg-gradient-to-br from-emerald-50 via-green-50 to-sky-50 flex items-center justify-center dark:from-slate-800 dark:via-slate-800 dark:to-slate-900">
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  backgroundImage: `linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)`,
-                  backgroundSize: "40px 40px",
-                }}
-              />
-
-              <div className="text-center relative z-10">
-                {mode === "walk" ? (
-                  <>
-                    <Footprints className="h-12 w-12 text-emerald-400 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                      Walk GPS Recording Mode
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto dark:text-slate-400">
-                      Walk around your farm boundary with GPS enabled. The app will
-                      record your path and calculate the area automatically.
-                    </p>
-                    <Button
-                      className="mt-4"
-                      onClick={() => setIsRecording(!isRecording)}
-                      variant={isRecording ? "destructive" : "primary"}
-                    >
-                      <Locate className="h-4 w-4" />
-                      {isRecording ? "Stop Recording" : "Start Recording"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <PenTool className="h-12 w-12 text-emerald-400 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                      Draw on Map Mode
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto dark:text-slate-400">
-                      Tap on the map to place boundary points. Complete the
-                      polygon by clicking the first point again.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Stats bar */}
-            <div className="p-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
-              <div className="text-center px-3">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Area</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  0.0 Acres
-                </p>
-              </div>
-              <div className="text-center px-3">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Perimeter</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  0 m
-                </p>
-              </div>
-              <div className="text-center px-3">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Points</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  0
-                </p>
-              </div>
-            </div>
+            <InteractiveFarmMap
+              interactive={true}
+              onLocationSelect={handleLocationSelect}
+              onAreaCalculated={(acres) => setAreaAcres(acres > 0 ? acres : 5.0)}
+            />
           </div>
         </div>
 
-        {/* Farm Details Form */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 dark:bg-slate-900 dark:border-slate-800">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 dark:text-white">
-              Farm Details
-            </h3>
-            <div className="space-y-4">
+        {/* Form Details */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm dark:bg-slate-900 dark:border-slate-800 space-y-4">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800">
+            Farm Metadata
+          </h3>
+
+          <form onSubmit={handleSaveFarm} className="space-y-4 text-xs font-semibold">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1">Farm Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Sunrise Organic Plantation"
+                value={farmName}
+                onChange={(e) => setFarmName(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1">
+                Reverse Geocoded Location
+              </label>
+              <input
+                type="text"
+                value={locationAddress}
+                onChange={(e) => setLocationAddress(e.target.value)}
+                placeholder="Click on map to auto-fill address"
+                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-[11px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block dark:text-slate-300">
-                  Farm Name
-                </label>
-                <Input placeholder="e.g. Green Valley Farm" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block dark:text-slate-300">
-                  Address / Location
-                </label>
-                <Input
-                  placeholder="e.g. Mandya District, Karnataka"
-                  icon={<MapPin className="h-4 w-4" />}
+                <label className="block text-slate-700 dark:text-slate-300 mb-1">Area (Acres)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={areaAcres}
+                  onChange={(e) => setAreaAcres(Number(e.target.value))}
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                 />
               </div>
+
               <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block dark:text-slate-300">
-                  Soil Type
-                </label>
-                <select className="w-full h-10 px-3 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-800 dark:text-white">
-                  <option value="">Select soil type</option>
-                  <option value="clay">Clay</option>
-                  <option value="loamy">Loamy</option>
-                  <option value="sandy">Sandy</option>
-                  <option value="silt">Silt</option>
-                  <option value="red">Red Soil</option>
-                  <option value="black">Black Cotton Soil</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block dark:text-slate-300">
-                  Water Source
-                </label>
-                <select className="w-full h-10 px-3 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-800 dark:text-white">
-                  <option value="">Select water source</option>
-                  <option value="borewell">Borewell</option>
-                  <option value="canal">Canal</option>
-                  <option value="river">River</option>
-                  <option value="rain">Rain-fed</option>
-                  <option value="tank">Tank / Lake</option>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1">Soil Type</label>
+                <select
+                  value={soilType}
+                  onChange={(e) => setSoilType(e.target.value)}
+                  className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="Loamy Soil">Loamy Soil</option>
+                  <option value="Black Cotton Soil">Black Cotton Soil</option>
+                  <option value="Red Soil">Red Soil</option>
+                  <option value="Clay Soil">Clay Soil</option>
+                  <option value="Sandy Soil">Sandy Soil</option>
                 </select>
               </div>
             </div>
-          </div>
 
-          <Button className="w-full" size="lg">
-            <Save className="h-4 w-4" />
-            Save Farm
-          </Button>
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1">Water Source</label>
+              <select
+                value={waterSource}
+                onChange={(e) => setWaterSource(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              >
+                <option value="Borewell">Borewell</option>
+                <option value="Canal">Canal</option>
+                <option value="River">River</option>
+                <option value="Rain-fed">Rain-fed</option>
+              </select>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full py-6 text-base font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20"
+            >
+              <Save className="h-5 w-5 mr-2" />
+              Save Farm to Database
+            </Button>
+          </form>
         </div>
       </div>
     </div>

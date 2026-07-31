@@ -13,30 +13,33 @@ import {
   AlertsPanel,
   QuickActions,
 } from "@/components/dashboard";
-import { MOCK_USER } from "@/lib/mock-data";
+import { useAuthStore } from "@/stores/auth-store";
 
 export default function DashboardPage() {
+  const { user } = useAuthStore();
+  const displayName = user?.name ? user.name.split(" ")[0] : "Farmer";
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight dark:text-white">
-            Welcome back, {MOCK_USER.name.split(" ")[0]} 👋
+            Welcome back, {displayName} 👋
           </h1>
           <p className="text-sm text-slate-500 mt-0.5 dark:text-slate-400">
-            Here&apos;s what&apos;s happening across your farms today.
+            Real-time smart farming insights for your registered land.
           </p>
         </div>
         <Link href="/farms/add">
-          <Button size="sm">
-            <Plus className="h-4 w-4" />
-            Add Farm
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+            <Plus className="h-4 w-4 mr-1" />
+            + Add Farm
           </Button>
         </Link>
       </div>
 
-      {/* Stat Cards Row */}
+      {/* Real Stat Cards Row */}
       <StatCards />
 
       {/* Main Content Grid */}

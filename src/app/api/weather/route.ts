@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchWeatherForLocation } from "@/lib/weather/api";
+import { fetchLiveWeather } from "@/lib/weather/api";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get("lat") || "12.5218");
-    const lng = parseFloat(searchParams.get("lng") || "76.8951");
+    const latParam = searchParams.get("lat");
+    const lngParam = searchParams.get("lng");
 
-    const weatherData = await fetchWeatherForLocation(lat, lng);
+    const lat = latParam ? parseFloat(latParam) : 12.9716;
+    const lng = lngParam ? parseFloat(lngParam) : 77.5946;
+
+    const weatherData = await fetchLiveWeather(lat, lng);
     return NextResponse.json({ success: true, weather: weatherData });
   } catch (error: any) {
     console.error("Weather API Route Error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch weather." },
+      { error: error.message || "Failed to fetch live weather data." },
       { status: 500 }
     );
   }

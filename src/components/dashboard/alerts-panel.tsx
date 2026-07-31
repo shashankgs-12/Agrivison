@@ -1,80 +1,73 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ShieldAlert, CloudLightning } from "lucide-react";
+import { AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { MOCK_ALERTS } from "@/lib/mock-data";
-
-const ALERT_STYLES: Record<string, { bg: string; border: string; icon: string; iconBg: string; IconComponent: React.ElementType }> = {
-  critical: {
-    bg: "bg-rose-50 dark:bg-rose-950/30",
-    border: "border-rose-200 dark:border-rose-800",
-    icon: "text-rose-600",
-    iconBg: "bg-rose-100 dark:bg-rose-900",
-    IconComponent: ShieldAlert,
-  },
-  warning: {
-    bg: "bg-amber-50 dark:bg-amber-950/30",
-    border: "border-amber-200 dark:border-amber-800",
-    icon: "text-amber-600",
-    iconBg: "bg-amber-100 dark:bg-amber-900",
-    IconComponent: CloudLightning,
-  },
-};
+import { useDiseaseRecords } from "@/hooks/use-history";
+import { useAuthStore } from "@/stores/auth-store";
 
 export function AlertsPanel() {
+  const { user } = useAuthStore();
+  const { diseaseRecords } = useDiseaseRecords();
+
+  // Filter alerts for medium/high/critical severity
+  const activeAlerts = diseaseRecords.filter(
+    (r) => r.severity === "critical" || r.severity === "high" || r.severity === "medium"
+  );
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm dark:bg-slate-900 dark:border-slate-800">
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-rose-600" />
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Active Alerts
+            Active Crop Disease Alerts
           </h3>
         </div>
-        <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full dark:bg-rose-900 dark:text-rose-300">
-          {MOCK_ALERTS.length} Active
+        <span
+          className={cn(
+            "text-[10px] font-bold px-2 py-0.5 rounded-full",
+            activeAlerts.length > 0
+              ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          )}
+        >
+          {activeAlerts.length} Active
         </span>
       </div>
 
       <div className="p-4 space-y-3">
-        {MOCK_ALERTS.map((alert) => {
-          const style = ALERT_STYLES[alert.severity] || ALERT_STYLES.warning;
-          const Icon = style.IconComponent;
-
-          return (
+        {activeAlerts.length === 0 ? (
+          <div className="text-center py-6 space-y-2">
+            <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              No Active Disease Alerts
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Your registered crops are healthy and free of critical disease diagnoses.
+            </p>
+          </div>
+        ) : (
+          activeAlerts.map((alert) => (
             <div
               key={alert.id}
-              className={cn(
-                "rounded-lg border p-3 transition-all hover:shadow-sm",
-                style.bg,
-                style.border
-              )}
+              className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 dark:bg-rose-950/20 dark:border-rose-900 space-y-1"
             >
-              <div className="flex items-start gap-3">
-                <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0", style.iconBg)}>
-                  <Icon className={cn("h-4 w-4", style.icon)} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      {alert.title}
-                    </span>
-                    <span className="text-[10px] text-slate-400 shrink-0 dark:text-slate-500">
-                      {alert.time}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mb-1.5 dark:text-slate-400">
-                    {alert.description}
-                  </p>
-                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                    📍 {alert.field}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+                  <ShieldAlert className="h-4 w-4 text-rose-600" />
+                  {alert.diseaseName}
+                </span>
+                <span className="text-[10px] uppercase font-bold bg-rose-200 text-rose-900 px-2 py-0.5 rounded dark:bg-rose-900 dark:text-rose-200">
+                  {alert.severity}
+                </span>
               </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
+                {alert.symptoms}
+              </p>
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
     </div>
   );
