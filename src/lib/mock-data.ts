@@ -13,9 +13,10 @@ export const MOCK_USER = {
   subscription: "Free Plan",
 };
 
-export const MOCK_STATS: any[] = [];
-export const MOCK_WEATHER: any = null;
-export const MOCK_IRRIGATION_ADVICE: any = null;
-export const MOCK_ALERTS: any[] = [];
-export const MOCK_RECENT_ACTIVITY: any[] = [];
-export const MOCK_FARMS: any[] = [];
+export const MOCK_STATS: unknown[] = [];
+export const MOCK_WEATHER: null = null;
+export const MOCK_IRRIGATION_ADVICE: null = null;
+export const MOCK_ALERTS: unknown[] = [];
+export const MOCK_RECENT_ACTIVITY: unknown[] = [];
+export const MOCK_FARMS: unknown[] = [];
+

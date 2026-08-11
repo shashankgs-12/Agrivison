@@ -31,7 +31,7 @@ export default function CropsPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: "",
     variety: "",
     farmId: "",
@@ -42,7 +42,7 @@ export default function CropsPage() {
     waterNeed: "Medium" as Crop["waterNeed"],
     health: "Excellent" as Crop["health"],
     diseaseStatus: "Healthy",
-  });
+  }));
 
   const handleCreateCrop = (e: React.FormEvent) => {
     e.preventDefault();
@@ -334,7 +334,7 @@ export default function CropsPage() {
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Growth Stage</label>
                   <select
                     value={formData.growthStage}
-                    onChange={(e) => setFormData({ ...formData, growthStage: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, growthStage: e.target.value as Crop["growthStage"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
                     <option value="Seedling">Seedling</option>
@@ -361,7 +361,7 @@ export default function CropsPage() {
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Water Need</label>
                   <select
                     value={formData.waterNeed}
-                    onChange={(e) => setFormData({ ...formData, waterNeed: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, waterNeed: e.target.value as Crop["waterNeed"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
                     <option value="Low">Low</option>

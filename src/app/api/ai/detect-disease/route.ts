@@ -23,20 +23,29 @@ export async function POST(req: NextRequest) {
       PROMPTS.DISEASE_DETECTION
     );
 
+    if (!rawResponse) {
+      throw new Error("No response generated from AI engine.");
+    }
+
     // Clean JSON code fences if present
-    const cleanedText = rawResponse
+    let cleanedText = rawResponse
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanedText = jsonMatch[0];
+    }
+
     const parsedData = JSON.parse(cleanedText);
 
     return NextResponse.json({ success: true, result: parsedData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Disease Detection Error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to process disease scan. Please ensure GEMINI_API_KEY is configured.",
+        error: error instanceof Error ? error.message : "Failed to process disease scan. Please ensure GEMINI_API_KEY is configured.",
       },
       { status: 500 }
     );

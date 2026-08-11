@@ -40,6 +40,7 @@ export default function DiseaseDetectionPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -128,8 +129,8 @@ export default function DiseaseDetectionPage() {
         organicTreatment: organicStr,
         chemicalTreatment: chemicalStr,
       });
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to scan disease. Please try again.");
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to scan disease. Please try again.");
     } finally {
       setAnalyzing(false);
     }

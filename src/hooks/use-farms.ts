@@ -15,7 +15,7 @@ export function useFarms() {
   const userFarms = useMemo(() => {
     if (!user?.uid) return farms;
     return farms.filter((f) => f.ownerId === user.uid || !f.ownerId);
-  }, [farms, user?.uid]);
+  }, [farms, user]);
 
   return {
     farms: userFarms,

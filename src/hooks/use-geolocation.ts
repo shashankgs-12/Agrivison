@@ -9,9 +9,11 @@ export function useGeolocation() {
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("Geolocation is not supported by your browser");
-      setLoading(false);
-      return;
+      const t = setTimeout(() => {
+        setError("Geolocation is not supported by your browser");
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(t);
     }
 
     navigator.geolocation.getCurrentPosition(

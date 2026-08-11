@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
       success: true,
       reply: aiResponse,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("AI Chat Error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to process chat message.",
+        error: error instanceof Error ? error.message : "Failed to process chat message.",
       },
       { status: 500 }
     );

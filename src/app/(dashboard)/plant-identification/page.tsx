@@ -38,6 +38,7 @@ export default function PlantIdentificationPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingStage, setLoadingStage] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -113,8 +114,8 @@ export default function PlantIdentificationPage() {
         waterRequirement: data.result.waterRequirement || "",
         harvestCycle: data.result.harvestCycle || "",
       });
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to identify plant. Please try again.");
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to identify plant. Please try again.");
     } finally {
       setAnalyzing(false);
     }

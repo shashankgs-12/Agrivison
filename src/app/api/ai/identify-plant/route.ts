@@ -22,19 +22,28 @@ export async function POST(req: NextRequest) {
       PROMPTS.PLANT_IDENTIFICATION
     );
 
-    const cleanedText = rawResponse
+    if (!rawResponse) {
+      throw new Error("No response generated from AI engine.");
+    }
+
+    let cleanedText = rawResponse
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanedText = jsonMatch[0];
+    }
+
     const parsedData = JSON.parse(cleanedText);
 
     return NextResponse.json({ success: true, result: parsedData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Plant Identification Error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to identify plant. Please ensure GEMINI_API_KEY is configured in your environment.",
+        error: error instanceof Error ? error.message : "Failed to identify plant. Please ensure GEMINI_API_KEY is configured in your environment.",
       },
       { status: 500 }
     );

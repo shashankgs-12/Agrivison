@@ -33,22 +33,25 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Camera access error:", err);
       setError("Unable to access camera. Please allow camera permissions in your browser or select an image file.");
     }
   };
 
   useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
     if (isOpen && !capturedImage) {
-      startCamera(facingMode);
+      t = setTimeout(() => startCamera(facingMode), 0);
     } else {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
-        setStream(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setTimeout(() => setStream(null), 0);
       }
     }
     return () => {
+      clearTimeout(t);
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
@@ -120,7 +123,10 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               <p className="text-sm font-medium">{error}</p>
             </div>
           ) : capturedImage ? (
-            <img src={capturedImage} alt="Captured" className="w-full h-full object-contain" />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={capturedImage} alt="Captured" className="w-full h-full object-contain" />
+            </>
           ) : (
             <video
               ref={videoRef}
@@ -130,7 +136,6 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               className="w-full h-full object-cover"
             />
           )}
-
           {/* Hidden Canvas */}
           <canvas ref={canvasRef} className="hidden" />
 

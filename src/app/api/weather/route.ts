@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
 
     const weatherData = await fetchLiveWeather(lat, lng);
     return NextResponse.json({ success: true, weather: weatherData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Weather API Route Error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch live weather data." },
+      { error: error instanceof Error ? error.message : "Failed to fetch live weather data." },
       { status: 500 }
     );
   }

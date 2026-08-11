@@ -12,6 +12,7 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  FieldValue,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -50,8 +51,8 @@ export interface FirestoreUser {
     chat: string;
   };
   subscription: "free" | "premium";
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | FieldValue;
+  updatedAt?: Timestamp | FieldValue;
 }
 
 export interface FirestoreFarm {
@@ -72,8 +73,8 @@ export interface FirestoreFarm {
   soilType: string;
   waterSource: string;
   images?: string[];
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | FieldValue;
+  updatedAt?: Timestamp | FieldValue;
 }
 
 export interface FirestoreCrop {
@@ -89,7 +90,7 @@ export interface FirestoreCrop {
   progress: number;
   waterNeed: string;
   health: string;
-  createdAt?: any;
+  createdAt?: Timestamp | FieldValue;
 }
 
 export interface FirestoreDiseaseDetection {
@@ -106,7 +107,7 @@ export interface FirestoreDiseaseDetection {
       chemical: Record<string, string>;
     };
   };
-  createdAt?: any;
+  createdAt?: Timestamp | FieldValue;
 }
 
 // User Operations

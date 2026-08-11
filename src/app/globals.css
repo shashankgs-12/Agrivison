@@ -1,8 +1,25 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 /* ============================================
-   AgriVision AI — Design System Tokens
+   Leaflet Map Core Styles & Flickering Fix
    ============================================ */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+  background-color: #020617 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-tile-container {
+  will-change: transform;
+}
+
+.gis-farm-marker {
+  background: transparent !important;
+  border: none !important;
+}
 
 @theme inline {
   /* --- Colors: Brand Greens (#008631 & #00ab41) --- */

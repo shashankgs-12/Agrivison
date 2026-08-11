@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,6 +13,8 @@ import {
   Globe,
   CheckCircle,
   AlertCircle,
+  KeyRound,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,32 +24,100 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
 
+  const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
+
+  // Phone OTP Flow State
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [resendTimer, setResendTimer] = useState(30);
+
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (otpSent && resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [otpSent, resendTimer]);
+
+  const handleSendOTP = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setErrorMsg(null);
 
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone.length < 10) {
+      setErrorMsg("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      setOtpSent(true);
+      setResendTimer(30);
+      setOtpCode("123456"); // Pre-fill test OTP for seamless demo experience
+    }, 600);
+  };
+
+  const handleVerifyOTP = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (otpCode.trim().length !== 6) {
+      setErrorMsg("Please enter a 6-digit verification OTP code.");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const targetIdentifier = loginMethod === "email" ? email : (phone ? `${phone.replace(/[^0-9]/g, "")}@agrivision.ai` : "farmer@agrivision.ai");
-      login(targetIdentifier, password);
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      login(`${cleanPhone}@agrivision.ai`);
       setIsLoading(false);
       setSuccessMessage(true);
 
       setTimeout(() => {
         router.push("/dashboard");
       }, 600);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsLoading(false);
-      setErrorMsg(err.message || "Sign in failed. Please try again.");
+      setErrorMsg(err instanceof Error ? err.message : "OTP verification failed. Please try again.");
+    }
+  };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    if (!email || !password) {
+      setIsLoading(false);
+      setErrorMsg("Please enter both email address and password.");
+      return;
+    }
+
+    try {
+      login(email, password);
+      setIsLoading(false);
+      setSuccessMessage(true);
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 600);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      setErrorMsg(err instanceof Error ? err.message : "Sign in failed. Please check credentials.");
     }
   };
 
@@ -60,7 +130,7 @@ export default function LoginPage() {
             Welcome Back
           </h1>
           <p className="text-xs text-zinc-500 mt-1 dark:text-zinc-400">
-            Sign in to access your farming dashboard
+            Sign in to access your smart farming dashboard
           </p>
         </div>
 
@@ -68,7 +138,7 @@ export default function LoginPage() {
         {successMessage && (
           <div className="mb-4 p-3 bg-[#008631]/10 border border-[#00ab41] rounded-xl flex items-center gap-2 text-xs font-bold text-[#00ab41] animate-fade-in">
             <CheckCircle className="h-4 w-4 shrink-0" />
-            Signed in successfully! Redirecting...
+            Signed in successfully! Redirecting to dashboard...
           </div>
         )}
 
@@ -76,7 +146,10 @@ export default function LoginPage() {
         <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-xl p-1 mb-6">
           <button
             type="button"
-            onClick={() => setLoginMethod("email")}
+            onClick={() => {
+              setLoginMethod("email");
+              setErrorMsg(null);
+            }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               loginMethod === "email"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
@@ -88,7 +161,10 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => setLoginMethod("phone")}
+            onClick={() => {
+              setLoginMethod("phone");
+              setErrorMsg(null);
+            }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               loginMethod === "phone"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
@@ -96,76 +172,93 @@ export default function LoginPage() {
             }`}
           >
             <Phone className="h-3.5 w-3.5" />
-            Phone
+            Phone OTP
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {loginMethod === "email" ? (
-            <>
-              <div>
-                <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
-                  Email Address
-                </label>
-                <Input
-                  type="email"
-                  required
-                  placeholder="farmer@agrivision.ai"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  icon={<Mail className="h-4 w-4" />}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
-                  Password
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    icon={<Lock className="h-4 w-4" />}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 rounded border-zinc-300 text-[#00ab41] focus:ring-[#00ab41]"
-                  />
-                  <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                    Remember me
-                  </span>
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs font-semibold text-[#00ab41] hover:underline"
-                >
-                  Forgot Password?
-                </Link>
-              </div>
-            </>
-          ) : (
+        {/* Email Login Form */}
+        {loginMethod === "email" && (
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
-                Phone Number
+                Email Address
+              </label>
+              <Input
+                type="email"
+                required
+                placeholder="farmer@agrivision.ai"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                icon={<Mail className="h-4 w-4" />}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  icon={<Lock className="h-4 w-4" />}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="h-3.5 w-3.5 rounded border-zinc-300 text-[#00ab41] focus:ring-[#00ab41]"
+                />
+                <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                  Remember me
+                </span>
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-semibold text-[#00ab41] hover:underline"
+              >
+                Forgot Password?
+              </Link>
+            </div>
+
+            {/* Error Banner */}
+            {errorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {errorMsg}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Signing In..." : "Sign In"}
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </form>
+        )}
+
+        {/* Phone OTP Step 1: Request OTP */}
+        {loginMethod === "phone" && !otpSent && (
+          <form onSubmit={handleSendOTP} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+                Mobile Phone Number
               </label>
               <Input
                 type="tel"
@@ -176,16 +269,92 @@ export default function LoginPage() {
                 icon={<Phone className="h-4 w-4" />}
               />
               <p className="text-[10px] text-zinc-400 mt-1.5 dark:text-zinc-500">
-                We&apos;ll send you a one-time verification code
+                We&apos;ll send an instant 6-digit verification code to this phone number
               </p>
             </div>
-          )}
 
-          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-            {isLoading ? "Signing In..." : loginMethod === "email" ? "Sign In" : "Send OTP"}
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </form>
+            {/* Error Banner */}
+            {errorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {errorMsg}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Sending OTP..." : "Send Verification OTP"}
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </form>
+        )}
+
+        {/* Phone OTP Step 2: Verify OTP */}
+        {loginMethod === "phone" && otpSent && (
+          <form onSubmit={handleVerifyOTP} className="space-y-4">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl dark:bg-emerald-950/30 dark:border-emerald-900 text-xs">
+              <span className="text-emerald-800 dark:text-emerald-300 font-semibold block">
+                OTP Sent to <strong className="font-bold">{phone}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpSent(false);
+                  setErrorMsg(null);
+                }}
+                className="text-[11px] text-[#00ab41] font-bold underline mt-1 block"
+              >
+                Change Phone Number
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+                Enter 6-Digit OTP Code
+              </label>
+              <Input
+                type="text"
+                maxLength={6}
+                required
+                placeholder="123456"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+                icon={<KeyRound className="h-4 w-4" />}
+                className="tracking-widest font-mono text-center font-bold text-base"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-zinc-500">
+              <span>Didn&apos;t receive code?</span>
+              {resendTimer > 0 ? (
+                <span className="font-semibold text-zinc-400">Resend in {resendTimer}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResendTimer(30);
+                    setOtpCode("123456");
+                  }}
+                  className="font-bold text-[#00ab41] hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw className="h-3 w-3" /> Resend OTP
+                </button>
+              )}
+            </div>
+
+            {/* Error Banner */}
+            {errorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {errorMsg}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Verifying..." : "Verify OTP & Sign In"}
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </form>
+        )}
 
         {/* Divider */}
         <div className="flex items-center gap-3 my-6">
@@ -193,14 +362,6 @@ export default function LoginPage() {
           <span className="text-xs text-zinc-400 font-medium">or</span>
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
         </div>
-
-        {/* Error Banner */}
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {errorMsg}
-          </div>
-        )}
 
         {/* Google SSO */}
         <Button
@@ -216,7 +377,7 @@ export default function LoginPage() {
               setTimeout(() => {
                 router.push("/dashboard");
               }, 400);
-            } catch (err: any) {
+            } catch (err: unknown) {
               setIsLoading(false);
               setErrorMsg("Google authentication failed. Please try again.");
             }

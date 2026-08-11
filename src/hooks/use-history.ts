@@ -13,7 +13,7 @@ export function useDiseaseRecords() {
   const filteredRecords = useMemo(() => {
     if (!user?.uid) return diseaseRecords;
     return diseaseRecords.filter((r) => r.userId === user.uid || !r.userId);
-  }, [diseaseRecords, user?.uid]);
+  }, [diseaseRecords, user]);
 
   return {
     diseaseRecords: filteredRecords,
@@ -32,7 +32,7 @@ export function usePlantRecords() {
   const filteredRecords = useMemo(() => {
     if (!user?.uid) return plantRecords;
     return plantRecords.filter((r) => r.userId === user.uid || !r.userId);
-  }, [plantRecords, user?.uid]);
+  }, [plantRecords, user]);
 
   return {
     plantRecords: filteredRecords,

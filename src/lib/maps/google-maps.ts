@@ -1,7 +1,7 @@
 export function loadGoogleMapsScript(apiKey: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") return;
-    if ((window as any).google?.maps) {
+    if ((window as Window & { google?: { maps?: unknown } }).google?.maps) {
       resolve();
       return;
     }

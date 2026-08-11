@@ -49,7 +49,7 @@ export const useAuthStore = create<AuthState>()(
       },
       login: (emailInput) => {
         const email = emailInput && emailInput.trim() ? emailInput.trim() : "farmer@agrivision.ai";
-        const uid = `usr-${btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12)}`;
+        const uid = `usr-${encodeURIComponent(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
         const namePart = email.includes("@") ? email.split("@")[0] : email;
         const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
 

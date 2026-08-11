@@ -21,7 +21,7 @@ export function useCrops(farmId?: string) {
       list = list.filter((c) => c.farmId === farmId);
     }
     return list;
-  }, [crops, user?.uid, farmId]);
+  }, [crops, user, farmId]);
 
   return {
     crops: userCrops,
