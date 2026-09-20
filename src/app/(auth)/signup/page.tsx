@@ -187,7 +187,7 @@ export default function SignupPage() {
             <Input
               type="text"
               required
-              placeholder="Shashank"
+              placeholder="Enter full name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               icon={<User className="h-4 w-4" />}
@@ -201,7 +201,7 @@ export default function SignupPage() {
             <Input
               type="email"
               required
-              placeholder="gsshashank.hvr@gmail.com"
+              placeholder="farmer@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               icon={<Mail className="h-4 w-4" />}
@@ -214,7 +214,7 @@ export default function SignupPage() {
             </label>
             <Input
               type="tel"
-              placeholder="9880651312"
+              placeholder="10-digit mobile number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               icon={<Phone className="h-4 w-4" />}

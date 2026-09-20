@@ -37,6 +37,13 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [resendTimer, setResendTimer] = useState(30);
+  const [foundPhoneUser, setFoundPhoneUser] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: "farmer" | "agriculture_officer" | "admin";
+  } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -55,23 +62,47 @@ export default function LoginPage() {
     };
   }, [otpSent, resendTimer]);
 
-  const handleSendOTP = (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setFoundPhoneUser(null);
 
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (cleanPhone.length < 10) {
-      setErrorMsg("Please enter a valid 10-digit phone number.");
+      setErrorMsg("Please enter a valid 10-digit mobile phone number.");
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      // Query PostgreSQL DB for user by mobile number
+      const res = await fetch("/api/auth/phone-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.user) {
+        setIsLoading(false);
+        setErrorMsg(
+          data.error || `User not found in database for mobile number ${phone}. Please create an account first.`
+        );
+        return;
+      }
+
+      // Found registered user in PostgreSQL database!
+      setFoundPhoneUser(data.user);
       setIsLoading(false);
       setOtpSent(true);
       setResendTimer(30);
-      setOtpCode("123456"); // Pre-fill test OTP for seamless demo experience
-    }, 600);
+      setOtpCode(""); // Leave OTP input empty for manual entry (Security Compliance)
+    } catch {
+      setIsLoading(false);
+      setErrorMsg("Unable to verify mobile number. Please try again.");
+    }
   };
 
   const handleVerifyOTP = (e: React.FormEvent) => {
@@ -79,16 +110,26 @@ export default function LoginPage() {
     setErrorMsg(null);
 
     if (otpCode.trim().length !== 6) {
-      setErrorMsg("Please enter a 6-digit verification OTP code.");
+      setErrorMsg("Please enter the 6-digit verification OTP code sent to your mobile number.");
+      return;
+    }
+
+    if (!foundPhoneUser) {
+      setErrorMsg("User details not found. Please try sending OTP again.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const cleanPhone = phone.replace(/[^0-9]/g, "");
-      // Authenticate in auth store & session
-      storeLogin(`phone_${cleanPhone}@agrivision.ai`, "", "farmer", "Farmer User", cleanPhone);
-      
+      // Authenticate in auth store using exact user details found in PostgreSQL DB
+      storeLogin(
+        foundPhoneUser.email,
+        "",
+        foundPhoneUser.role,
+        foundPhoneUser.name,
+        foundPhoneUser.phone
+      );
+
       setIsLoading(false);
       setSuccessMessage(true);
 
@@ -112,44 +153,33 @@ export default function LoginPage() {
       return;
     }
 
+    const cleanEmail = email.trim();
+
     try {
+      // Attempt NextAuth credentials sign-in
       const res = await signIn("credentials", {
-        email,
+        email: cleanEmail,
         password,
         redirect: false,
       });
 
       if (res?.error) {
-        // Fallback for demo mode
-        if (email.includes("farmer") || email.includes("officer") || password.length >= 4) {
-          storeLogin(email, password);
-          setSuccessMessage(true);
-          setTimeout(() => {
-            window.location.href = "/dashboard";
-          }, 500);
-          return;
-        }
         setIsLoading(false);
-        setErrorMsg("Sign in failed. Please check credentials.");
+        setErrorMsg("Incorrect password or email. Please check your credentials or use Forgot Password to reset your password.");
         return;
       }
 
-      // Sync with Zustand client store
-      storeLogin(email, password);
+      // Authenticate store upon successful login
+      storeLogin(cleanEmail, password);
       setIsLoading(false);
       setSuccessMessage(true);
 
       setTimeout(() => {
         window.location.href = "/dashboard";
-      }, 500);
-    } catch (err: unknown) {
-      // Graceful fallback for local development / testing
-      storeLogin(email, password);
+      }, 400);
+    } catch {
       setIsLoading(false);
-      setSuccessMessage(true);
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 500);
+      setErrorMsg("An unexpected sign-in error occurred. Please check your password and try again.");
     }
   };
 
@@ -157,13 +187,13 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrorMsg(null);
     if (role === "farmer") {
-      setEmail("farmer@agrivision.ai");
+      setEmail("farmer@example.com");
       setPassword("password123");
-      storeLogin("farmer@agrivision.ai", "password123", "farmer", "Demo Farmer", "+91 9880651312");
+      storeLogin("farmer@example.com", "password123", "farmer", "Demo Farmer", "+91 9876543210");
     } else {
-      setEmail("officer@agrivision.ai");
+      setEmail("officer@example.com");
       setPassword("password123");
-      storeLogin("officer@agrivision.ai", "password123", "agriculture_officer", "Agri Officer Inspector", "+91 9448123456");
+      storeLogin("officer@example.com", "password123", "agriculture_officer", "Agri Officer Inspector", "+91 9448123456");
     }
 
     setSuccessMessage(true);
@@ -260,7 +290,7 @@ export default function LoginPage() {
               <Input
                 type="email"
                 required
-                placeholder="farmer@agrivision.ai"
+                placeholder="farmer@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 icon={<Mail className="h-4 w-4" />}
@@ -283,7 +313,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -312,11 +342,23 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Error Banner */}
+            {/* Error Banner with Forgot Password Link */}
             {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {errorMsg}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{errorMsg}</span>
+                </div>
+                {errorMsg.toLowerCase().includes("incorrect") && (
+                  <div className="pt-1 text-right">
+                    <Link
+                      href="/forgot-password"
+                      className="inline-block text-[11px] font-extrabold text-[#00ab41] underline hover:text-[#008631]"
+                    >
+                      🔑 Reset your password via Forgot Password →
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
@@ -337,45 +379,61 @@ export default function LoginPage() {
               <Input
                 type="tel"
                 required
-                placeholder="+91 9880651312"
+                placeholder="10-digit mobile number"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 icon={<Phone className="h-4 w-4" />}
               />
               <p className="text-[10px] text-zinc-400 mt-1.5 dark:text-zinc-500">
-                We&apos;ll send an instant 6-digit verification code to this phone number
+                We&apos;ll check your mobile number in PostgreSQL DB and send an instant verification code
               </p>
             </div>
 
-            {/* Error Banner */}
+            {/* Error Banner with Register Link */}
             {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {errorMsg}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{errorMsg}</span>
+                </div>
+                {errorMsg.toLowerCase().includes("not found") && (
+                  <div className="pt-1">
+                    <Link
+                      href="/signup"
+                      className="inline-block text-xs font-extrabold bg-[#00ab41] text-white px-3 py-1.5 rounded-lg hover:bg-[#008631] transition-all"
+                    >
+                      + Create New Account for {phone || "this number"}
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
             <Button type="submit" className="w-full font-bold cursor-pointer" size="lg" disabled={isLoading}>
-              {isLoading ? "Sending OTP..." : "Send Verification OTP"}
+              {isLoading ? "Checking Mobile Number..." : "Send Verification OTP"}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </form>
         )}
 
         {/* Phone OTP Step 2: Verify OTP */}
-        {loginMethod === "phone" && otpSent && (
+        {loginMethod === "phone" && otpSent && foundPhoneUser && (
           <form onSubmit={handleVerifyOTP} className="space-y-4">
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl dark:bg-emerald-950/30 dark:border-emerald-900 text-xs">
-              <span className="text-emerald-800 dark:text-emerald-300 font-semibold block">
-                OTP Sent to <strong className="font-bold">{phone || "+91 9880651312"}</strong>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl dark:bg-emerald-950/30 dark:border-emerald-900 text-xs space-y-1">
+              <span className="text-emerald-800 dark:text-emerald-300 font-bold block">
+                Logged in Farmer: <strong className="text-slate-900 dark:text-white font-extrabold">{foundPhoneUser.name}</strong> ({foundPhoneUser.email})
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                Verification code sent to <strong>{foundPhoneUser.phone || phone}</strong>
               </span>
               <button
                 type="button"
                 onClick={() => {
                   setOtpSent(false);
                   setErrorMsg(null);
+                  setFoundPhoneUser(null);
                 }}
-                className="text-[11px] text-[#00ab41] font-bold underline mt-1 block"
+                className="text-[11px] text-[#00ab41] font-bold underline mt-1 block cursor-pointer"
               >
                 Change Phone Number
               </button>
@@ -395,9 +453,6 @@ export default function LoginPage() {
                 icon={<KeyRound className="h-4 w-4" />}
                 className="tracking-widest font-mono text-center font-bold text-base"
               />
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                Default test OTP code is 123456
-              </p>
             </div>
 
             <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -411,7 +466,7 @@ export default function LoginPage() {
                     setResendTimer(30);
                     setOtpCode("123456");
                   }}
-                  className="font-bold text-[#00ab41] hover:underline flex items-center gap-1"
+                  className="font-bold text-[#00ab41] hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <RefreshCw className="h-3 w-3" /> Resend OTP
                 </button>
@@ -427,7 +482,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full font-bold cursor-pointer" size="lg" disabled={isLoading}>
-              {isLoading ? "Verifying..." : "Verify OTP & Sign In"}
+              {isLoading ? "Verifying..." : `Sign In as ${foundPhoneUser.name}`}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </form>
@@ -449,19 +504,10 @@ export default function LoginPage() {
           onClick={async () => {
             setIsLoading(true);
             try {
-              storeLogin("farmer@agrivision.ai", "", "farmer", "Google Farmer User");
-              setSuccessMessage(true);
-              const googleRes = await signIn("google", { callbackUrl: "/dashboard", redirect: false });
-              if (googleRes?.url) {
-                window.location.href = googleRes.url;
-                return;
-              }
+              await signIn("google", { callbackUrl: "/dashboard" });
             } catch (gErr) {
               console.warn("Google OAuth trigger notice:", gErr);
             }
-            setTimeout(() => {
-              window.location.href = "/dashboard";
-            }, 500);
           }}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />

@@ -1,14 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { User, Mail, Phone, MapPin, Crown, Save, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { User, Mail, Phone, MapPin, Crown, Save, CheckCircle2, LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function ProfilePage() {
-  const { user, setUser } = useAuthStore();
+  const router = useRouter();
+  const { user, setUser, logout } = useAuthStore();
 
   const [name, setName] = useState(user?.name || "Farmer");
   const [email, setEmail] = useState(user?.email || "farmer@agrivision.ai");
@@ -28,6 +31,15 @@ export default function ProfilePage() {
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
+    }
+  };
+
+  const handleLogout = async () => {
+    logout();
+    try {
+      await signOut({ callbackUrl: "/login", redirect: true });
+    } catch {
+      router.push("/login");
     }
   };
 
@@ -114,12 +126,26 @@ export default function ProfilePage() {
             />
           </div>
 
-          <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold" size="lg">
-            <Save className="h-4 w-4 mr-1" />
-            Save Profile Changes
-          </Button>
+          <div className="pt-2 space-y-3">
+            <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer" size="lg">
+              <Save className="h-4 w-4 mr-1" />
+              Save Profile Changes
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleLogout}
+              variant="outline"
+              className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 font-bold cursor-pointer dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/40"
+              size="lg"
+            >
+              <LogOut className="h-4 w-4 mr-1.5" />
+              Log Out of AgriVision.AI
+            </Button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
+

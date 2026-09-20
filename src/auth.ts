@@ -43,66 +43,63 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             where: { email },
           });
 
-          if (user && user.passwordHash && user.isActive) {
-            const passwordMatches = await compare(inputPassword, user.passwordHash);
-            if (passwordMatches) {
-              return {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                image: user.image,
-                role: user.role,
-                phone: user.phone,
-                location: user.location,
-                subscription: user.subscription,
-              };
+          if (user) {
+            if (user.passwordHash && user.isActive) {
+              const passwordMatches = await compare(inputPassword, user.passwordHash);
+              if (passwordMatches) {
+                return {
+                  id: user.id,
+                  name: user.name,
+                  email: user.email,
+                  image: user.image,
+                  role: user.role,
+                  phone: user.phone,
+                  location: user.location,
+                  subscription: user.subscription,
+                };
+              } else {
+                // Password DOES NOT match user in PostgreSQL DB!
+                console.warn(`Authentication failed for ${email}: Incorrect password.`);
+                return null;
+              }
             }
+            return null;
           }
         } catch (dbErr) {
-          console.warn("Database connection issue during authentication, using fallback auth:", dbErr);
+          console.warn("Database connection issue during authentication:", dbErr);
         }
 
-        // 2. Demo & Fallback Authentication (Enables seamless testing & offline access)
+        // 2. Demo & Preset Accounts Authentication
         if (email === "farmer@agrivision.ai" || email === "farmer@agrivision.com") {
-          return {
-            id: "usr-demo-farmer",
-            name: "Demo Farmer",
-            email: "farmer@agrivision.ai",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=DemoFarmer",
-            role: "FARMER" as const,
-            phone: "+91 9880651312",
-            location: "Karnataka, India",
-            subscription: "PREMIUM" as const,
-          };
+          if (inputPassword === "password123") {
+            return {
+              id: "usr-demo-farmer",
+              name: "Demo Farmer",
+              email: "farmer@agrivision.ai",
+              image: "https://api.dicebear.com/7.x/avataaars/svg?seed=DemoFarmer",
+              role: "FARMER" as const,
+              phone: "+91 9880651312",
+              location: "Karnataka, India",
+              subscription: "PREMIUM" as const,
+            };
+          }
+          return null;
         }
 
         if (email === "officer@agrivision.ai" || email === "officer@agrivision.com") {
-          return {
-            id: "usr-demo-officer",
-            name: "Agri Officer Inspector",
-            email: "officer@agrivision.ai",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Officer",
-            role: "AGRICULTURE_OFFICER" as const,
-            phone: "+91 9448123456",
-            location: "District Agri Office",
-            subscription: "PREMIUM" as const,
-          };
-        }
-
-        // Allow any user login in demo mode if password is provided (fallback for testing)
-        if (inputPassword && inputPassword.length >= 4) {
-          const namePart = email.split("@")[0] || "User";
-          const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-          return {
-            id: `usr-${Date.now()}`,
-            name: formattedName,
-            email: email,
-            image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formattedName)}`,
-            role: email.includes("officer") ? ("AGRICULTURE_OFFICER" as const) : ("FARMER" as const),
-            phone: null,
-            location: "GPS Location Active",
-            subscription: "FREE" as const,
-          };
+          if (inputPassword === "password123") {
+            return {
+              id: "usr-demo-officer",
+              name: "Agri Officer Inspector",
+              email: "officer@agrivision.ai",
+              image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Officer",
+              role: "AGRICULTURE_OFFICER" as const,
+              phone: "+91 9448123456",
+              location: "District Agri Office",
+              subscription: "PREMIUM" as const,
+            };
+          }
+          return null;
         }
 
         return null;

@@ -14,18 +14,17 @@ export default auth((req) => {
 
   const isLoggedIn = !!req.auth || hasSessionCookie;
 
-  const isAuthRoute =
-    nextUrl.pathname.startsWith("/login") ||
-    nextUrl.pathname.startsWith("/signup");
-
-  const isDashboardRoute = nextUrl.pathname.startsWith("/dashboard");
-
-  if (isAuthRoute) {
-    if (isLoggedIn) {
-      return Response.redirect(new URL("/dashboard", nextUrl));
-    }
-    return;
-  }
+  const isDashboardRoute =
+    nextUrl.pathname.startsWith("/dashboard") ||
+    nextUrl.pathname.startsWith("/farms") ||
+    nextUrl.pathname.startsWith("/crops") ||
+    nextUrl.pathname.startsWith("/disease-detection") ||
+    nextUrl.pathname.startsWith("/plant-identification") ||
+    nextUrl.pathname.startsWith("/irrigation") ||
+    nextUrl.pathname.startsWith("/reports") ||
+    nextUrl.pathname.startsWith("/weather") ||
+    nextUrl.pathname.startsWith("/profile") ||
+    nextUrl.pathname.startsWith("/settings");
 
   if (isDashboardRoute && !isLoggedIn) {
     return Response.redirect(new URL("/login", nextUrl));
@@ -35,3 +34,4 @@ export default auth((req) => {
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
+

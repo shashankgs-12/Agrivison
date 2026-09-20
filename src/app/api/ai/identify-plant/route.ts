@@ -99,11 +99,20 @@ export async function POST(req: NextRequest) {
       sunlightRequirement: parsedData.sunlightRequirement || "Full sunlight.",
     };
 
-    // Save scan to PostgreSQL database using Prisma
+    // Save scan to PostgreSQL database using Prisma safely
     try {
+      let validUserId: string | null = null;
+      if (activeUserId) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: activeUserId },
+          select: { id: true },
+        });
+        if (dbUser) validUserId = dbUser.id;
+      }
+
       await prisma.plantScan.create({
         data: {
-          userId: activeUserId,
+          userId: validUserId,
           imageUrl: image.length > 500000 ? image.slice(0, 500000) : image, // Truncate very large base64 if needed
           plantName: formattedResult.name,
           scientificName: formattedResult.scientificName,
