@@ -16,10 +16,12 @@ import {
   Shield,
   Crown,
   CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
+import { signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 
 const ROLES = [
@@ -45,8 +47,7 @@ const ROLES = [
 
 export default function SignupPage() {
   const router = useRouter();
-  const { createAccount } = useAuthStore();
-
+  const { login: storeLogin } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -55,26 +56,56 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg(null);
 
-    setTimeout(() => {
-      createAccount({
-        name: fullName || "Farmer",
-        email: email || "farmer@agrivision.ai",
-        phone: phone || "+91 9880651312",
-        role: selectedRole,
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          phone,
+          password,
+          role: selectedRole.toUpperCase(),
+        }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Registration failed");
+      }
+
+      // Sync user into Zustand store
+      storeLogin(email, password, selectedRole, fullName, phone);
+
+      // Trigger NextAuth credentials sign-in
+      try {
+        await signIn("credentials", {
+          email,
+          password,
+          redirect: false,
+        });
+      } catch (authErr) {
+        console.warn("NextAuth session sync background notice:", authErr);
+      }
 
       setIsLoading(false);
       setSuccessMessage(true);
 
       setTimeout(() => {
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }, 600);
-    }, 400);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      setErrorMsg(err instanceof Error ? err.message : "Unable to register. Please try again.");
+    }
   };
 
   return (
@@ -138,6 +169,14 @@ export default function SignupPage() {
             })}
           </div>
         </div>
+
+        {/* Error Banner */}
+        {errorMsg && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-600 animate-fade-in dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {errorMsg}
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -235,12 +274,8 @@ export default function SignupPage() {
           className="w-full"
           size="lg"
           onClick={() => {
-            createAccount({
-              name: fullName || "Google Farmer",
-              email: email || "user@gmail.com",
-              role: selectedRole,
-            });
-            router.push("/dashboard");
+            setIsLoading(true);
+            signIn("google", { callbackUrl: "/dashboard" });
           }}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />

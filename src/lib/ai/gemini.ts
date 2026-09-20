@@ -1,20 +1,37 @@
 import { PROMPTS } from "./prompts";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
+
+function getApiKey(): string {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key || key.trim() === "" || key === "your_gemini_api_key" || key === "your-gemini-api-key") {
+    throw new Error("GEMINI_API_KEY environment variable is not configured in .env or .env.local.");
+  }
+  return key.trim();
+}
+
+function maskApiKey(text: string, apiKey: string): string {
+  if (!text) return "";
+  let sanitized = text;
+  if (apiKey && apiKey.length > 4) {
+    sanitized = sanitized.replaceAll(apiKey, "[MASKED_API_KEY]");
+  }
+  return sanitized.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, "[MASKED_API_KEY]");
+}
 
 export async function analyzeImageWithGemini(
   base64Image: string,
   mimeType: string,
   promptText: string
 ) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY environment variable is not configured.");
-  }
+  const apiKey = getApiKey();
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(GEMINI_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify({
       contents: [
         {
@@ -34,7 +51,21 @@ export async function analyzeImageWithGemini(
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+    let googleMessage = "";
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed?.error?.message) {
+        googleMessage = parsed.error.message;
+      }
+    } catch {
+      // Not JSON
+    }
+
+    const rawErrorMessage = googleMessage || errText || "Request failed.";
+    const safeErrorMessage = maskApiKey(rawErrorMessage, apiKey);
+
+    console.error(`Gemini API Error [HTTP ${response.status}]:`, safeErrorMessage);
+    throw new Error(`Gemini API Error (HTTP ${response.status}): ${safeErrorMessage}`);
   }
 
   const data = await response.json();
@@ -43,13 +74,14 @@ export async function analyzeImageWithGemini(
 }
 
 export async function generateTextWithGemini(promptText: string) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY environment variable is not configured.");
-  }
+  const apiKey = getApiKey();
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(GEMINI_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify({
       contents: [{ parts: [{ text: promptText }] }],
     }),
@@ -57,7 +89,21 @@ export async function generateTextWithGemini(promptText: string) {
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+    let googleMessage = "";
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed?.error?.message) {
+        googleMessage = parsed.error.message;
+      }
+    } catch {
+      // Not JSON
+    }
+
+    const rawErrorMessage = googleMessage || errText || "Request failed.";
+    const safeErrorMessage = maskApiKey(rawErrorMessage, apiKey);
+
+    console.error(`Gemini API Error [HTTP ${response.status}]:`, safeErrorMessage);
+    throw new Error(`Gemini API Error (HTTP ${response.status}): ${safeErrorMessage}`);
   }
 
   const data = await response.json();

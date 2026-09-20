@@ -51,30 +51,29 @@ Return a valid JSON object strictly matching this schema:
 Do not include markdown code block backticks inside the JSON response. Return raw JSON string only.
 `,
 
-  PLANT_IDENTIFICATION: `
+  PLANT_IDENTIFICATION: (userLanguage: string = "en") => `
 You are an expert botanist and agricultural scientist.
-Identify the plant species from the provided image and provide complete agronomic guidelines.
+Examine the image provided.
+CRITICAL INSTRUCTION: First verify if the image clearly contains a plant, leaf, flower, crop, or tree.
+If the image is unclear or does NOT contain a plant, set "isPlant": false and set "message": "Unable to confidently identify the plant".
+
+If it IS a plant, identify the plant species and provide all text fields (description, care, soil, etc.) in the requested language "${userLanguage}".
 
 Return a valid JSON object strictly matching this schema:
 {
-  "name": {
-    "en": "English common name",
-    "kn": "Kannada common name (ಕನ್ನಡ)",
-    "hi": "Hindi common name (हिंदी)",
-    "te": "Telugu common name (తెలుగు)",
-    "ta": "Tamil common name (தமிழ்)",
-    "ml": "Malayalam common name (മലയാളം)"
-  },
-  "scientificName": "Scientific name",
-  "confidence": 96,
-  "family": "Botanical family name",
-  "growingSeason": "e.g. Kharif (June - Nov)",
-  "optimalSoil": "Optimal soil type (e.g. Deep Black Cotton Soil / Loamy Soil)",
-  "waterRequirement": "Water requirement (e.g. 500 - 700 mm per season)",
-  "harvestCycle": "Harvest duration (e.g. 150 - 180 days after sowing)",
-  "commonDiseases": "List of common diseases that affect this crop",
-  "npkRequirement": "Recommended NPK ratio (e.g. N:P:K = 120:60:60 kg/ha)",
-  "description": "General overview and agronomic importance of this plant"
+  "isPlant": true,
+  "name": "Plant common name",
+  "scientificName": "Scientific botanical name",
+  "confidence": 95,
+  "family": "Botanical family",
+  "description": "General overview and description of this plant",
+  "visibleCharacteristics": "Leaf shape, stem structure, flower features, and color details",
+  "recommendedCare": "Pruning, fertilizer, growth tips, and maintenance guidelines",
+  "commonDiseases": "List of common diseases, pests, or vulnerabilities",
+  "suitableSoil": "Optimal soil type and pH",
+  "waterRequirement": "Watering frequency and volume needs",
+  "sunlightRequirement": "Full sun, partial shade, or light needs",
+  "message": "Success message or clarification"
 }
 Do not include markdown code block backticks inside the JSON response. Return raw JSON string only.
 `,

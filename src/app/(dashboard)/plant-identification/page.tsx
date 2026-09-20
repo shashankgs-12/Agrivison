@@ -89,33 +89,42 @@ export default function PlantIdentificationPage() {
       const res = await fetch("/api/ai/identify-plant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage }),
+        body: JSON.stringify({
+          image: selectedImage,
+          language: currentLang,
+          userId: user?.uid,
+        }),
       });
 
       clearInterval(stageInterval);
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!res.ok || data.success === false) {
+        if (data.isPlant === false) {
+          setErrorMsg("Unable to confidently identify the plant. Please select a clearer photo of a plant leaf or crop.");
+          setResult(null);
+          return;
+        }
         throw new Error(data.error || "Plant identification failed.");
       }
 
       setResult(data.result);
 
-      // Save to store history
+      // Save to client store history as fallback
       addPlantRecord({
         userId: user?.uid,
         imageUrl: selectedImage,
-        plantName: typeof data.result.name === "object" ? data.result.name.en : data.result.name,
+        plantName: typeof data.result.name === "object" ? data.result.name[currentLang] || data.result.name.en : data.result.name,
         scientificName: data.result.scientificName || "",
         family: data.result.family || "",
         confidence: data.result.confidence || 95,
-        growingSeason: data.result.growingSeason || "",
-        optimalSoil: data.result.optimalSoil || "",
+        growingSeason: data.result.visibleCharacteristics || "",
+        optimalSoil: data.result.suitableSoil || "",
         waterRequirement: data.result.waterRequirement || "",
-        harvestCycle: data.result.harvestCycle || "",
+        harvestCycle: data.result.sunlightRequirement || "",
       });
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to identify plant. Please try again.");
+      setErrorMsg(err instanceof Error ? err.message : "Failed to identify plant. Please check your GEMINI_API_KEY configuration.");
     } finally {
       setAnalyzing(false);
     }
@@ -153,7 +162,7 @@ export default function PlantIdentificationPage() {
         <select
           value={currentLang}
           onChange={(e) => setPreference("plantInfo", e.target.value)}
-          className="h-8 px-2.5 text-xs font-bold bg-white text-emerald-900 border border-emerald-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:bg-slate-900 dark:text-white dark:border-slate-700"
+          className="h-8 px-2.5 text-xs font-bold bg-white text-emerald-900 border border-emerald-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:bg-slate-900 dark:text-white dark:border-slate-700 cursor-pointer"
         >
           {SUPPORTED_LANGUAGES.map((l) => (
             <option key={l.code} value={l.code}>
@@ -183,7 +192,7 @@ export default function PlantIdentificationPage() {
                   setResult(null);
                   setErrorMsg(null);
                 }}
-                className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-2 rounded-full text-xs font-bold transition-all"
+                className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-2 rounded-full text-xs font-bold transition-all cursor-pointer"
               >
                 Change Image
               </button>
@@ -205,7 +214,7 @@ export default function PlantIdentificationPage() {
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
               size="lg"
               onClick={() => setIsCameraOpen(true)}
               disabled={analyzing}
@@ -215,7 +224,7 @@ export default function PlantIdentificationPage() {
             </Button>
             <Button
               variant="outline"
-              className="flex-1 font-bold border-slate-300"
+              className="flex-1 font-bold border-slate-300 cursor-pointer"
               size="lg"
               onClick={() => fileInputRef.current?.click()}
               disabled={analyzing}
@@ -229,17 +238,17 @@ export default function PlantIdentificationPage() {
             <Button
               onClick={handleIdentify}
               disabled={analyzing}
-              className="w-full py-6 text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-500 hover:to-teal-500"
+              className="w-full py-6 text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-500 hover:to-teal-500 cursor-pointer"
             >
               <Sparkles className="h-5 w-5 mr-2 animate-spin-slow" />
               {analyzing ? LOADING_STAGES[loadingStage] : "Identify Plant with AI"}
             </Button>
           )}
 
-          {/* Validation Warning */}
+          {/* Validation & API Warning */}
           {errorMsg && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-              <AlertCircle className="h-4 w-4" />
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 text-left">
+              <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -278,7 +287,7 @@ export default function PlantIdentificationPage() {
                 {typeof result.name === "object" ? result.name[currentLang] || result.name.en : result.name}
               </h2>
               <p className="text-xs text-emerald-100 italic mt-0.5">
-                {result.scientificName} • Family: {result.family}
+                {result.scientificName} • Family: {result.family || "Botanical"}
               </p>
             </div>
             <div className="text-right bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20">
@@ -288,7 +297,7 @@ export default function PlantIdentificationPage() {
           </div>
 
           <div className="p-6 space-y-6">
-            {/* Overview / Description */}
+            {/* Description */}
             {result.description && (
               <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 dark:bg-emerald-950/20 dark:border-emerald-900">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-1 flex items-center gap-1.5">
@@ -301,14 +310,27 @@ export default function PlantIdentificationPage() {
               </div>
             )}
 
-            {/* Grid Attributes */}
+            {/* Recommended Care */}
+            {result.recommendedCare && (
+              <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 dark:bg-blue-950/20 dark:border-blue-900">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 mb-1 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                  Recommended Care & Growing Guidelines
+                </h4>
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                  {result.recommendedCare}
+                </p>
+              </div>
+            )}
+
+            {/* Grid Attributes (All 10 required fields) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                  <Sun className="h-3.5 w-3.5 text-amber-500" /> Growing Season
+                  <Sprout className="h-3.5 w-3.5 text-emerald-500" /> Visible Characteristics
                 </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.growingSeason || result.info?.growingSeason || "Kharif & Rabi"}
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.visibleCharacteristics || "Leaf structure & flowering features"}
                 </p>
               </div>
 
@@ -316,35 +338,26 @@ export default function PlantIdentificationPage() {
                 <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
                   <Droplets className="h-3.5 w-3.5 text-blue-500" /> Water Requirement
                 </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.waterRequirement || result.info?.water || "450 - 650 mm"}
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.waterRequirement || "Moderate regular watering"}
                 </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                  <Scissors className="h-3.5 w-3.5 text-emerald-500" /> Harvest Cycle
+                  <Sun className="h-3.5 w-3.5 text-amber-500" /> Sunlight Requirements
                 </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.harvestCycle || result.info?.harvest || "120 - 140 Days"}
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.sunlightRequirement || "Full sunlight to partial shade"}
                 </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                  <Sprout className="h-3.5 w-3.5 text-green-600" /> Optimal Soil
+                  <BookOpen className="h-3.5 w-3.5 text-green-600" /> Suitable Soil
                 </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.optimalSoil || result.info?.soil || "Well-drained Loamy Soil"}
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700">
-                <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                  <BookOpen className="h-3.5 w-3.5 text-purple-500" /> NPK Requirement
-                </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.npkRequirement || "100:50:50 NPK kg/ha"}
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.suitableSoil || "Well-drained fertile loamy soil"}
                 </p>
               </div>
 
@@ -352,8 +365,17 @@ export default function PlantIdentificationPage() {
                 <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
                   <ShieldAlert className="h-3.5 w-3.5 text-rose-500" /> Common Diseases
                 </span>
-                <p className="text-sm font-bold text-slate-800 mt-1 dark:text-slate-200">
-                  {result.commonDiseases || "Blast, Leaf Spot, Rust"}
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.commonDiseases || "Pest infestations, leaf spot, rust"}
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700">
+                <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                  <Scissors className="h-3.5 w-3.5 text-emerald-500" /> Family & Category
+                </span>
+                <p className="text-xs font-semibold text-slate-800 mt-1 dark:text-slate-200">
+                  {result.family || "Botanical Species"}
                 </p>
               </div>
             </div>

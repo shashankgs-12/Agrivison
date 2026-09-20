@@ -46,12 +46,13 @@ export async function POST(request: NextRequest) {
         email,
         phone: parsedInput.data.phone,
         passwordHash,
-        role: "FARMER",
+        role: parsedInput.data.role || "FARMER",
       },
       select: {
         id: true,
         name: true,
         email: true,
+        role: true,
       },
     });
 

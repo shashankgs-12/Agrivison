@@ -1,16 +1,58 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, History } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import { usePlantRecords } from "@/hooks/use-history";
 import { useAuthStore } from "@/stores/auth-store";
 
+interface DbPlantScan {
+  id: string;
+  imageUrl: string;
+  plantName: string;
+  scientificName?: string;
+  confidence: number;
+  description?: string;
+  createdAt: string;
+}
+
 export default function PlantHistoryPage() {
   const { user } = useAuthStore();
   const { plantRecords, deletePlantRecord: deleteRecord } = usePlantRecords();
+  const [dbScans, setDbScans] = useState<DbPlantScan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDbScans() {
+      try {
+        const query = user?.uid ? `?userId=${encodeURIComponent(user.uid)}` : "";
+        const res = await fetch(`/api/ai/identify-plant${query}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.scans) && data.scans.length > 0) {
+          setDbScans(data.scans);
+        }
+      } catch (err) {
+        console.warn("Failed to load PostgreSQL plant history:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDbScans();
+  }, [user?.uid]);
+
+  // Combine database scans with client store fallback
+  const displayRecords = dbScans.length > 0
+    ? dbScans.map(s => ({
+        id: s.id,
+        imageUrl: s.imageUrl,
+        plantName: s.plantName,
+        scientificName: s.scientificName || "N/A",
+        confidence: s.confidence,
+        timestamp: new Date(s.createdAt).getTime(),
+      }))
+    : plantRecords;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
@@ -30,7 +72,11 @@ export default function PlantHistoryPage() {
         </div>
       </div>
 
-      {plantRecords.length === 0 ? (
+      {loading ? (
+        <div className="p-8 text-center text-sm font-semibold text-slate-500">
+          Loading plant history...
+        </div>
+      ) : displayRecords.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center shadow-md dark:bg-slate-900 dark:border-slate-800 space-y-4">
           <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto dark:bg-emerald-950/50">
             <Sparkles className="h-8 w-8" />
@@ -52,7 +98,7 @@ export default function PlantHistoryPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {plantRecords.map((record) => (
+          {displayRecords.map((record) => (
             <div
               key={record.id}
               className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm flex items-center justify-between dark:bg-slate-900 dark:border-slate-800"
@@ -74,7 +120,7 @@ export default function PlantHistoryPage() {
                     {record.plantName} ({record.scientificName})
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Family: {record.family || "Botanical"} · {new Date(record.timestamp).toLocaleDateString()}
+                    Scan Date: {new Date(record.timestamp).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -84,7 +130,7 @@ export default function PlantHistoryPage() {
                 </span>
                 <button
                   onClick={() => deleteRecord(record.id)}
-                  className="text-xs text-slate-400 hover:text-rose-600 transition-colors"
+                  className="text-xs text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                 >
                   Delete
                 </button>

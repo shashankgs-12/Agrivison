@@ -31,6 +31,7 @@ model User {
   isActive      Boolean          @default(true)
   accounts      Account[]
   sessions      Session[]
+  plantScans    PlantScan[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 }
@@ -75,4 +76,25 @@ model Farm {
   location  String
   area      Float
   createdAt DateTime @default(now())
+}
+
+model PlantScan {
+  id                    String   @id @default(cuid())
+  userId                String?
+  imageUrl              String   @db.Text
+  plantName             String
+  scientificName        String?
+  confidence            Float
+  description           String?  @db.Text
+  visibleCharacteristics String? @db.Text
+  recommendedCare       String?  @db.Text
+  commonDiseases        String?  @db.Text
+  suitableSoil          String?
+  waterRequirement      String?
+  sunlightRequirement   String?
+  language              String   @default("en")
+  rawResult             String?  @db.Text
+  createdAt             DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
