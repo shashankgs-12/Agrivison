@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
             </div>
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs dark:bg-amber-950/30 dark:border-amber-800">
               <span className="font-bold text-amber-800 dark:text-amber-300">Raichur District (Karnataka)</span>
-              <p className="text-amber-900 mt-0.5 dark:text-amber-200">Cotton Leaf Curl Virus reported in 6 locations. Officers assigned.</p>
+              <p className="text-amber-900 mt-0.5 dark:text-amber-200">Cotton Leaf Curl Virus reported in 6 locations. Field teams notified.</p>
             </div>
           </div>
         </div>

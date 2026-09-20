@@ -24,7 +24,6 @@ export function useAuth() {
       const su = session.user as SessionUser;
       const roleLower = (su.role?.toLowerCase() || "farmer") as
         | "farmer"
-        | "agriculture_officer"
         | "admin";
 
       setUser({

@@ -82,7 +82,7 @@ const TESTIMONIALS = [
   },
   {
     name: "Priya Devi",
-    role: "Agriculture Officer",
+    role: "Agronomist Specialist",
     quote:
       "I manage 200+ farmers now. The GPS mapping and disease alerts save me hours of field visits every week.",
     rating: 5,

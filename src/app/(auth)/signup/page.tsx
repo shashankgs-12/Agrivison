@@ -13,37 +13,13 @@ import {
   Phone,
   Globe,
   Tractor,
-  Shield,
-  Crown,
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils/cn";
 import { signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
-
-const ROLES = [
-  {
-    value: "farmer" as const,
-    label: "Farmer",
-    description: "Manage your farms and crops",
-    icon: Tractor,
-  },
-  {
-    value: "agriculture_officer" as const,
-    label: "Agriculture Officer",
-    description: "Monitor and guide farmers",
-    icon: Shield,
-  },
-  {
-    value: "admin" as const,
-    label: "Admin",
-    description: "Platform administration",
-    icon: Crown,
-  },
-];
 
 export default function SignupPage() {
   const router = useRouter();
@@ -52,7 +28,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"farmer" | "agriculture_officer" | "admin">("farmer");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -72,7 +47,7 @@ export default function SignupPage() {
           email,
           phone,
           password,
-          role: selectedRole.toUpperCase(),
+          role: "FARMER",
         }),
       });
 
@@ -83,7 +58,7 @@ export default function SignupPage() {
       }
 
       // Sync user into Zustand store
-      storeLogin(email, password, selectedRole, fullName, phone);
+      storeLogin(email, password, "farmer", fullName, phone);
 
       // Trigger NextAuth credentials sign-in
       try {
@@ -113,11 +88,14 @@ export default function SignupPage() {
       <div className="bg-white dark:bg-black rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8">
         {/* Header */}
         <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 mb-3">
+            <Tractor className="h-6 w-6" />
+          </div>
           <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight dark:text-white">
-            Create Your Account
+            Create Farmer Account
           </h1>
           <p className="text-xs text-zinc-500 mt-1 dark:text-zinc-400">
-            Join the smart farming revolution
+            Join the AgriVision.AI smart farming platform
           </p>
         </div>
 
@@ -128,47 +106,6 @@ export default function SignupPage() {
             Account created successfully! Redirecting to Dashboard...
           </div>
         )}
-
-        {/* Role Selection */}
-        <div className="mb-6">
-          <label className="text-xs font-bold text-zinc-700 mb-2 block dark:text-zinc-300">
-            I am a
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {ROLES.map((role) => {
-              const Icon = role.icon;
-              const isSelected = selectedRole === role.value;
-              return (
-                <button
-                  key={role.value}
-                  type="button"
-                  onClick={() => setSelectedRole(role.value)}
-                  className={cn(
-                    "flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 text-center transition-all cursor-pointer",
-                    isSelected
-                      ? "border-[#00ab41] bg-[#008631]/10 dark:bg-[#00ab41]/15"
-                      : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-5 w-5 transition-colors",
-                      isSelected ? "text-[#00ab41]" : "text-zinc-400"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold leading-tight",
-                      isSelected ? "text-[#00ab41]" : "text-zinc-600 dark:text-zinc-400"
-                    )}
-                  >
-                    {role.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Error Banner */}
         {errorMsg && (

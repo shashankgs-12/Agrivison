@@ -1,6 +1,5 @@
 export const USER_ROLES = [
   "FARMER",
-  "AGRICULTURE_OFFICER",
   "ADMIN",
 ] as const;
 

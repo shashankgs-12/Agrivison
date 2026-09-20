@@ -28,7 +28,7 @@ export default function AdminUsersPage() {
           User Management
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Manage system access, roles, and assigned officer districts
+          Manage system access and user roles
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
                   <p className="text-[10px] text-slate-400">{u.email}</p>
                 </td>
                 <td className="p-3">
-                  <Badge variant={u.role === "admin" ? "amber" : u.role === "agriculture_officer" ? "blue" : "emerald"}>
+                  <Badge variant={u.role === "admin" ? "amber" : "emerald"}>
                     {u.role}
                   </Badge>
                 </td>

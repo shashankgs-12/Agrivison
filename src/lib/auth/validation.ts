@@ -30,7 +30,7 @@ export const registrationSchema = credentialsSchema.extend({
     .min(6, "Password must contain at least 6 characters.")
     .max(128, "Password must be 128 characters or fewer."),
   phone: optionalPhone,
-  role: z.enum(["FARMER", "AGRICULTURE_OFFICER", "ADMIN"]).optional(),
+  role: z.literal("FARMER").optional(),
 });
 
 export const profileSchema = z.object({

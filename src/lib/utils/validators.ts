@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const UserRoleSchema = z.enum(["admin", "agriculture_officer", "farmer"]);
+export const UserRoleSchema = z.enum(["admin", "farmer"]);
 
 export const SupportedLanguageSchema = z.enum(["en", "kn", "hi", "te", "ta", "ml"]);
 

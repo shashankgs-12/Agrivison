@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Mail,
   Lock,
@@ -16,7 +15,6 @@ import {
   KeyRound,
   RefreshCw,
   UserCheck,
-  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +22,6 @@ import { signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login: storeLogin } = useAuthStore();
 
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
@@ -42,7 +39,7 @@ export default function LoginPage() {
     name: string;
     email: string;
     phone: string;
-    role: "farmer" | "agriculture_officer" | "admin";
+    role: "farmer" | "admin";
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -153,7 +150,7 @@ export default function LoginPage() {
       return;
     }
 
-    const cleanEmail = email.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
     try {
       // Attempt NextAuth credentials sign-in
@@ -183,18 +180,27 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickDemoLogin = (role: "farmer" | "officer") => {
+  const handleQuickDemoLogin = async () => {
     setIsLoading(true);
     setErrorMsg(null);
-    if (role === "farmer") {
-      setEmail("farmer@example.com");
-      setPassword("password123");
-      storeLogin("farmer@example.com", "password123", "farmer", "Demo Farmer", "+91 9876543210");
-    } else {
-      setEmail("officer@example.com");
-      setPassword("password123");
-      storeLogin("officer@example.com", "password123", "agriculture_officer", "Agri Officer Inspector", "+91 9448123456");
+    const demoEmail = "farmer@agrivision.ai";
+    const demoPass = "password123";
+    setEmail(demoEmail);
+    setPassword(demoPass);
+
+    try {
+      // Sync NextAuth credentials session
+      await signIn("credentials", {
+        email: demoEmail,
+        password: demoPass,
+        redirect: false,
+      });
+    } catch (err) {
+      console.warn("Demo sign-in session notice:", err);
     }
+
+    // Authenticate in client auth store
+    storeLogin(demoEmail, demoPass, "farmer", "Demo Farmer", "+91 9880651312");
 
     setSuccessMessage(true);
     setTimeout(() => {
@@ -220,20 +226,13 @@ export default function LoginPage() {
           <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
             <UserCheck className="h-3.5 w-3.5" /> 1-Click Quick Demo Sign In
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div>
             <button
               type="button"
-              onClick={() => handleQuickDemoLogin("farmer")}
-              className="py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+              onClick={handleQuickDemoLogin}
+              className="w-full py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
             >
-              Demo Farmer
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin("officer")}
-              className="py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
-            >
-              Demo Officer
+              Demo Farmer Sign In
             </button>
           </div>
         </div>

@@ -97,6 +97,21 @@ export default function DiseaseDetectionPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
+        setResult(null);
+        if (
+          res.status === 503 ||
+          data.isBusy ||
+          (data.error &&
+            (data.error.includes("503") ||
+              data.error.includes("busy") ||
+              data.error.includes("high demand") ||
+              data.error.includes("temporarily unavailable")))
+        ) {
+          setErrorMsg(
+            "Disease scanner is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
+          );
+          return;
+        }
         throw new Error(data.error || "Disease detection failed.");
       }
 

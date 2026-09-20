@@ -36,7 +36,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form State for Adding Plant to Farm
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: "",
     variety: "",
     sowingDate: new Date().toISOString().split("T")[0],
@@ -46,7 +46,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     waterNeed: "Medium" as Crop["waterNeed"],
     health: "Excellent" as Crop["health"],
     diseaseStatus: "Healthy",
-  });
+  }));
 
   if (!farm) {
     return (

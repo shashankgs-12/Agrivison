@@ -17,8 +17,10 @@ import {
   CheckCircle2,
   FileText,
   ShieldAlert,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils/cn";
 import { useLanguageStore } from "@/stores/language-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -100,9 +102,23 @@ export default function PlantIdentificationPage() {
 
       const data = await res.json();
       if (!res.ok || data.success === false) {
+        setResult(null);
         if (data.isPlant === false) {
-          setErrorMsg("Unable to confidently identify the plant. Please select a clearer photo of a plant leaf or crop.");
-          setResult(null);
+          setErrorMsg(data.error || "Unable to confidently identify the plant. Please select a clearer photo of a plant leaf or crop.");
+          return;
+        }
+        if (
+          res.status === 503 ||
+          data.isBusy ||
+          (data.error &&
+            (data.error.includes("503") ||
+              data.error.includes("busy") ||
+              data.error.includes("high demand") ||
+              data.error.includes("temporarily unavailable")))
+        ) {
+          setErrorMsg(
+            "Plant identification is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
+          );
           return;
         }
         throw new Error(data.error || "Plant identification failed.");
@@ -124,7 +140,20 @@ export default function PlantIdentificationPage() {
         harvestCycle: data.result.sunlightRequirement || "",
       });
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to identify plant. Please check your GEMINI_API_KEY configuration.");
+      setResult(null);
+      const msg = err instanceof Error ? err.message : "Failed to identify plant.";
+      if (
+        msg.includes("503") ||
+        msg.includes("busy") ||
+        msg.includes("high demand") ||
+        msg.includes("temporarily unavailable")
+      ) {
+        setErrorMsg(
+          "Plant identification is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
+        );
+      } else {
+        setErrorMsg(msg);
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -247,9 +276,24 @@ export default function PlantIdentificationPage() {
 
           {/* Validation & API Warning */}
           {errorMsg && (
-            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 text-left">
-              <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
-              <span>{errorMsg}</span>
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold space-y-3 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 text-left">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
+                <span className="flex-1 leading-relaxed">{errorMsg}</span>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleIdentify}
+                  disabled={analyzing}
+                  className="bg-white dark:bg-slate-900 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 font-bold cursor-pointer shadow-sm"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", analyzing && "animate-spin")} />
+                  Try Again
+                </Button>
+              </div>
             </div>
           )}
         </div>

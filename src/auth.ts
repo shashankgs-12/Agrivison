@@ -86,22 +86,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (email === "officer@agrivision.ai" || email === "officer@agrivision.com") {
-          if (inputPassword === "password123") {
-            return {
-              id: "usr-demo-officer",
-              name: "Agri Officer Inspector",
-              email: "officer@agrivision.ai",
-              image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Officer",
-              role: "AGRICULTURE_OFFICER" as const,
-              phone: "+91 9448123456",
-              location: "District Agri Office",
-              subscription: "PREMIUM" as const,
-            };
-          }
-          return null;
-        }
-
         return null;
       },
     }),
@@ -111,7 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         const u = user as {
           id?: string;
-          role?: "FARMER" | "AGRICULTURE_OFFICER" | "ADMIN";
+          role?: "FARMER" | "ADMIN";
           phone?: string | null;
           location?: string | null;
           subscription?: "FREE" | "PREMIUM";
@@ -129,7 +113,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token.id) {
         const t = token as {
           id?: string;
-          role?: "FARMER" | "AGRICULTURE_OFFICER" | "ADMIN";
+          role?: "FARMER" | "ADMIN";
           phone?: string | null;
           location?: string | null;
           subscription?: "FREE" | "PREMIUM";

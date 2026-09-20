@@ -52,7 +52,7 @@ export default function FarmsPage() {
   const [plantModalFarm, setPlantModalFarm] = useState<Farm | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: "",
     variety: "",
     sowingDate: new Date().toISOString().split("T")[0],
@@ -62,7 +62,7 @@ export default function FarmsPage() {
     waterNeed: "Medium" as Crop["waterNeed"],
     health: "Excellent" as Crop["health"],
     diseaseStatus: "Healthy",
-  });
+  }));
 
   const filteredFarms = farms.filter(
     (f) =>

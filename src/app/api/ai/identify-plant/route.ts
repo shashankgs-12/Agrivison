@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeImageWithGemini } from "@/lib/ai/gemini";
+import { analyzeImageWithGemini, GeminiServiceError } from "@/lib/ai/gemini";
 import { PROMPTS } from "@/lib/ai/prompts";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -139,9 +139,34 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("Plant Identification Error:", error);
+
+    const isBusy =
+      (error instanceof GeminiServiceError && (error.status === 503 || error.isBusy)) ||
+      (error instanceof Error &&
+        (error.message.includes("503") ||
+          error.message.includes("high demand") ||
+          error.message.includes("busy") ||
+          error.message.includes("overloaded") ||
+          error.message.includes("capacity")));
+
+    if (isBusy) {
+      return NextResponse.json(
+        {
+          success: false,
+          isBusy: true,
+          error:
+            "Plant identification is temporarily unavailable. The AI service is currently busy. Please try again in a few moments.",
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Failed to identify plant. Please ensure GEMINI_API_KEY is configured in your environment.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to identify plant. Please ensure GEMINI_API_KEY is configured in your environment.",
       },
       { status: 500 }
     );

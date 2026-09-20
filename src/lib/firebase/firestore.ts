@@ -34,7 +34,7 @@ export interface FirestoreUser {
   email: string;
   displayName: string;
   phone?: string;
-  role: "admin" | "agriculture_officer" | "farmer";
+  role: "admin" | "farmer";
   avatar?: string;
   location?: {
     lat: number;

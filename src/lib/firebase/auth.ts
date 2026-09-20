@@ -18,7 +18,7 @@ export interface UserProfile {
   displayName: string | null;
   phoneNumber: string | null;
   photoURL: string | null;
-  role: "farmer" | "agriculture_officer" | "admin";
+  role: "farmer" | "admin";
   subscription: "free" | "premium";
 }
 
@@ -29,7 +29,7 @@ export async function signUpWithEmail(
   email: string,
   pass: string,
   name: string,
-  role: "farmer" | "agriculture_officer" | "admin" = "farmer"
+  role: "farmer" | "admin" = "farmer"
 ) {
   const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
   return { user: userCredential.user, role };

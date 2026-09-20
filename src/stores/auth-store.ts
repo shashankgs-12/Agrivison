@@ -6,7 +6,7 @@ export interface UserAccount {
   name: string;
   email: string;
   phone?: string;
-  role: "farmer" | "agriculture_officer" | "admin";
+  role: "farmer" | "admin";
   avatar?: string;
   location?: string;
   subscription?: string;
@@ -20,12 +20,12 @@ interface AuthState {
     name: string;
     email: string;
     phone?: string;
-    role: "farmer" | "agriculture_officer" | "admin";
+    role: "farmer" | "admin";
   }) => UserAccount;
   login: (
     emailInput: string,
     pass?: string,
-    roleParam?: "farmer" | "agriculture_officer" | "admin",
+    roleParam?: "farmer" | "admin",
     nameParam?: string,
     phoneParam?: string
   ) => UserAccount;
@@ -70,7 +70,7 @@ export const useAuthStore = create<AuthState>()(
         const uid = `usr-${encodeURIComponent(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
         const namePart = email.includes("@") ? email.split("@")[0] : email;
         const formattedName = nameParam || (namePart.charAt(0).toUpperCase() + namePart.slice(1));
-        const userRole = roleParam || (email.includes("officer") ? "agriculture_officer" : email.includes("admin") ? "admin" : "farmer");
+        const userRole = roleParam || (email.includes("admin") ? "admin" : "farmer");
 
         const loggedUser: UserAccount = {
           uid,
