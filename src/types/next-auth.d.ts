@@ -16,6 +16,8 @@ declare module "next-auth" {
       phone: string | null;
       location: string | null;
       subscription: "FREE" | "PREMIUM";
+      authProvider?: string;
+      requiresProfileCompletion: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -27,5 +29,7 @@ declare module "@auth/core/jwt" {
     phone?: string | null;
     location?: string | null;
     subscription?: "FREE" | "PREMIUM";
+    authProvider?: string;
+    profileComplete?: boolean;
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { profileSchema } from "@/lib/auth/validation";
+import { findUserByPhone } from "@/lib/auth/phone-lookup";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: NextRequest) {
@@ -19,6 +20,19 @@ export async function PATCH(request: NextRequest) {
         { error: parsedInput.error.issues[0]?.message ?? "Invalid profile details." },
         { status: 400 }
       );
+    }
+
+    if (parsedInput.data.phone) {
+      const existingPhone = await findUserByPhone(
+        parsedInput.data.phone,
+        session.user.id
+      );
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: "This mobile number is already registered to another account." },
+          { status: 409 }
+        );
+      }
     }
 
     const user = await prisma.user.update({

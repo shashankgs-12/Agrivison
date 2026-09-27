@@ -44,10 +44,18 @@ export function WeatherWidget() {
             onClick={() => detectGPSAndFetch()}
             disabled={loading}
             className="flex items-center gap-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-white transition-all"
-            title="Refresh Live Weather"
+            title="Refresh Weather"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-            <span>{loading ? "Updating..." : "Live Weather"}</span>
+            <span>
+              {loading
+                ? "Updating..."
+                : weather?.source === "fallback"
+                  ? "Estimated"
+                  : weather
+                    ? "Live Weather"
+                    : "Weather"}
+            </span>
           </button>
         </div>
 
@@ -58,23 +66,28 @@ export function WeatherWidget() {
         <p className="text-xs font-bold text-emerald-100 mt-1 uppercase tracking-wider">
           {condition}
         </p>
+        {weather?.source === "fallback" && (
+          <p className="text-[10px] font-semibold text-amber-100 mt-1">
+            Sample estimate · live feed unavailable
+          </p>
+        )}
       </div>
 
       {/* Weather Stats Grid */}
       <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
         <div className="p-3 text-center">
           <Droplets className="h-4 w-4 mx-auto text-blue-500 mb-1" />
-          <p className="text-[10px] text-slate-400 font-medium">Humidity</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold">Humidity</p>
           <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{humidity}%</p>
         </div>
         <div className="p-3 text-center">
           <Wind className="h-4 w-4 mx-auto text-teal-500 mb-1" />
-          <p className="text-[10px] text-slate-400 font-medium">Wind</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold">Wind</p>
           <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{wind} km/h</p>
         </div>
         <div className="p-3 text-center">
           <CloudRain className="h-4 w-4 mx-auto text-indigo-500 mb-1" />
-          <p className="text-[10px] text-slate-400 font-medium">Rain Risk</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold">Rain Risk</p>
           <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{rainProb}%</p>
         </div>
       </div>

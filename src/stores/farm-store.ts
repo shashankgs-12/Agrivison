@@ -52,8 +52,8 @@ export const useFarmStore = create<FarmState>()(
         })),
       getFarmsByUser: (userId) => {
         const state = get();
-        if (!userId) return state.farms;
-        return state.farms.filter((f) => f.ownerId === userId || !f.ownerId);
+        if (!userId) return [];
+        return state.farms.filter((farm) => farm.ownerId === userId);
       },
       resetToZero: () => set({ farms: [] }),
     }),

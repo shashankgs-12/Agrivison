@@ -163,6 +163,11 @@ export async function analyzeImageWithGemini(
         ],
       },
     ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+    },
   };
 
   const data = await postGeminiWithRetry(requestBody);

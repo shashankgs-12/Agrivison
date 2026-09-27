@@ -1,7 +1,8 @@
 import type { NextAuthConfig } from "next-auth";
 
 export default {
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "agrivision-super-secret-key-9880651312-secure-token",
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/login",
   },

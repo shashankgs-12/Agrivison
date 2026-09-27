@@ -7,8 +7,22 @@ export async function GET(req: NextRequest) {
     const latParam = searchParams.get("lat");
     const lngParam = searchParams.get("lng");
 
-    const lat = latParam ? parseFloat(latParam) : 12.9716;
-    const lng = lngParam ? parseFloat(lngParam) : 77.5946;
+    const lat = latParam === null ? 12.9716 : Number(latParam);
+    const lng = lngParam === null ? 77.5946 : Number(lngParam);
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return NextResponse.json(
+        { error: "Latitude and longitude must be valid geographic coordinates." },
+        { status: 400 }
+      );
+    }
 
     const weatherData = await fetchLiveWeather(lat, lng);
     return NextResponse.json({ success: true, weather: weatherData });

@@ -13,8 +13,8 @@ export function useFarms() {
   const resetToZero = useFarmStore((state) => state.resetToZero);
 
   const userFarms = useMemo(() => {
-    if (!user?.uid) return farms;
-    return farms.filter((f) => f.ownerId === user.uid || !f.ownerId);
+    if (!user?.uid) return [];
+    return farms.filter((farm) => farm.ownerId === user.uid);
   }, [farms, user]);
 
   return {

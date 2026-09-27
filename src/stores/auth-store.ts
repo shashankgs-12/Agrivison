@@ -16,19 +16,6 @@ interface AuthState {
   user: UserAccount | null;
   isAuthenticated: boolean;
   setUser: (user: UserAccount | null) => void;
-  createAccount: (details: {
-    name: string;
-    email: string;
-    phone?: string;
-    role: "farmer" | "admin";
-  }) => UserAccount;
-  login: (
-    emailInput: string,
-    pass?: string,
-    roleParam?: "farmer" | "admin",
-    nameParam?: string,
-    phoneParam?: string
-  ) => UserAccount;
   logout: () => void;
 }
 
@@ -37,57 +24,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
-      setUser: (user) => {
-        if (typeof window !== "undefined") {
-          if (user) {
-            document.cookie = "agrivision_session=true; path=/; max-age=28800; SameSite=Lax";
-          } else {
-            document.cookie = "agrivision_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-          }
-        }
-        set({ user, isAuthenticated: !!user });
-      },
-      createAccount: (details) => {
-        const uid = `usr-${Date.now()}`;
-        const newUser: UserAccount = {
-          uid,
-          name: details.name || "Farmer",
-          email: details.email || `${uid}@agrivision.ai`,
-          phone: details.phone || "",
-          role: details.role || "farmer",
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(details.name || "Farmer")}`,
-          location: "GPS Location Active",
-          subscription: "Free Plan",
-        };
-        if (typeof window !== "undefined") {
-          document.cookie = "agrivision_session=true; path=/; max-age=28800; SameSite=Lax";
-        }
-        set({ user: newUser, isAuthenticated: true });
-        return newUser;
-      },
-      login: (emailInput, _pass, roleParam, nameParam, phoneParam) => {
-        const email = emailInput && emailInput.trim() ? emailInput.trim() : "farmer@agrivision.ai";
-        const uid = `usr-${encodeURIComponent(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
-        const namePart = email.includes("@") ? email.split("@")[0] : email;
-        const formattedName = nameParam || (namePart.charAt(0).toUpperCase() + namePart.slice(1));
-        const userRole = roleParam || (email.includes("admin") ? "admin" : "farmer");
-
-        const loggedUser: UserAccount = {
-          uid,
-          name: formattedName || "Farmer",
-          email: email,
-          phone: phoneParam || "",
-          role: userRole,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formattedName)}`,
-          location: "GPS Location Active",
-          subscription: "Premium",
-        };
-        if (typeof window !== "undefined") {
-          document.cookie = "agrivision_session=true; path=/; max-age=28800; SameSite=Lax";
-        }
-        set({ user: loggedUser, isAuthenticated: true });
-        return loggedUser;
-      },
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
       logout: () => {
         if (typeof window !== "undefined") {
           const cookieNames = [
@@ -99,9 +36,12 @@ export const useAuthStore = create<AuthState>()(
             "next-auth.csrf-token",
             "authjs.csrf-token",
           ];
+          const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
           cookieNames.forEach((name) => {
             document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-            document.cookie = `${name}=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+            if (!isIp && window.location.hostname !== "localhost") {
+              document.cookie = `${name}=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+            }
           });
         }
         set({ user: null, isAuthenticated: false });

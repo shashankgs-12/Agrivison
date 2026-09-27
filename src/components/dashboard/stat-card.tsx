@@ -106,13 +106,13 @@ export function StatCards() {
                 <TrendIcon className="h-3 w-3" />
               </div>
             </div>
-            <p className="text-xs text-slate-500 font-semibold mb-0.5 dark:text-slate-400">
+            <p className="text-xs text-slate-600 font-bold mb-0.5 dark:text-slate-300">
               {stat.title}
             </p>
             <p className="text-xl font-bold text-slate-900 tracking-tight dark:text-white">
               {stat.value}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1 dark:text-slate-500 font-medium">
+            <p className="text-[11px] text-slate-600 mt-1 dark:text-slate-400 font-medium">
               {stat.change}
             </p>
           </div>

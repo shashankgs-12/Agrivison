@@ -43,10 +43,9 @@ export interface GISMapEngineProps {
 // Ultra-reliable High-Resolution Satellite & Map Tile Servers
 const TILE_SERVERS: Record<MapMode, { url: string; attribution: string; maxZoom: number; subdomains?: string[] }> = {
   satellite: {
-    url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google Satellite Imagery",
-    maxZoom: 20,
-    subdomains: ["0", "1", "2", "3"],
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "&copy; Esri & Maxar Earthstar Geographics",
+    maxZoom: 19,
   },
   hybrid: {
     url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
@@ -165,26 +164,32 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(
             }
           });
 
-          const observer = new ResizeObserver(() => {
+          const handleInvalidate = () => {
             if (mapInstanceRef.current) {
               mapInstanceRef.current.invalidateSize();
             }
-          });
+          };
 
+          const observer = new ResizeObserver(handleInvalidate);
           if (containerRef.current) {
             observer.observe(containerRef.current);
           }
+          window.addEventListener("resize", handleInvalidate);
+          window.addEventListener("orientationchange", handleInvalidate);
 
           setIsMapReady(true);
 
           requestAnimationFrame(() => map.invalidateSize());
           setTimeout(() => map.invalidateSize(), 100);
           setTimeout(() => map.invalidateSize(), 300);
+          setTimeout(() => map.invalidateSize(), 800);
         }
       });
 
       return () => {
         isSubscribed = false;
+        window.removeEventListener("resize", () => {});
+        window.removeEventListener("orientationchange", () => {});
         if (mapInstanceRef.current) {
           mapInstanceRef.current.remove();
           mapInstanceRef.current = null;
@@ -212,6 +217,9 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(
           subdomains: config.subdomains || ["0", "1", "2", "3"],
           tileSize: 256,
           zoomOffset: 0,
+          keepBuffer: 4,
+          updateWhenIdle: false,
+          updateWhenZooming: false,
         });
 
         newTileLayer.addTo(map);

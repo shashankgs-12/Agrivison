@@ -18,7 +18,23 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Sign-in provider setup
+
+Copy `.env.local.example` to `.env.local`, then add credentials from your own provider projects. Do not commit `.env.local` or paste provider secrets into source code.
+
+### Google sign-in
+
+Create an OAuth 2.0 client with application type **Web application** in Google Cloud Console. Set `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` in `.env.local`. Add the callback URL for the exact host and port you run:
+
+- `http://localhost:3000/api/auth/callback/google`
+- `http://localhost:3001/api/auth/callback/google`
+- Your production URL followed by `/api/auth/callback/google`
+
+The Google sign-in button stays disabled when the Web client ID or secret is missing or still a placeholder. A successful first Google sign-in routes the farmer to profile completion for their name, mobile number, and location.
+
+### Phone OTP
+
+Set the `NEXT_PUBLIC_FIREBASE_*` web configuration values in `.env.local`, enable **Phone** under Firebase Authentication sign-in providers, and configure SMS regions. Web phone authentication requires reCAPTCHA and an authorized domain; use the Firebase Auth Emulator or configured test phone numbers for local development, then use an authorized HTTPS domain for real SMS sign-in.
 
 ## Learn More
 

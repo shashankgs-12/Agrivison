@@ -1,18 +1,24 @@
 import { z } from "zod";
+import { normalizePhoneNumber } from "@/lib/auth/phone-number";
 
 const optionalPhone = z
   .string()
   .trim()
   .max(25, "Phone number must be 25 characters or fewer.")
   .optional()
-  .transform((value) => value || undefined);
+  .transform((value) => value?.trim() || null)
+  .refine(
+    (value) => value === null || normalizePhoneNumber(value) !== null,
+    "Enter a valid phone number with its country code, such as +91 9876543210."
+  )
+  .transform((value) => (value ? normalizePhoneNumber(value) : null));
 
 const optionalLocation = z
   .string()
   .trim()
   .max(160, "Location must be 160 characters or fewer.")
   .optional()
-  .transform((value) => value || undefined);
+  .transform((value) => value || null);
 
 export const credentialsSchema = z.object({
   email: z.string().trim().email("Enter a valid email address.").max(320),

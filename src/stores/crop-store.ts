@@ -56,8 +56,8 @@ export const useCropStore = create<CropState>()(
         })),
       getCropsByUser: (userId) => {
         const state = get();
-        if (!userId) return state.crops;
-        return state.crops.filter((c) => c.ownerId === userId || !c.ownerId);
+        if (!userId) return [];
+        return state.crops.filter((crop) => crop.ownerId === userId);
       },
       getCropsByFarm: (farmId) => {
         const state = get();

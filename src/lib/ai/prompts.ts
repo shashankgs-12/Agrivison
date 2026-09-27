@@ -17,7 +17,7 @@ Return a valid JSON object strictly matching this schema:
   },
   "scientificName": "Scientific name",
   "confidence": 94,
-  "severity": "low" | "medium" | "high" | "critical",
+  "severity": "medium",
   "symptoms": {
     "en": "Detailed symptoms description in English",
     "kn": "Kannada symptoms description",
@@ -48,6 +48,8 @@ Return a valid JSON object strictly matching this schema:
   "prevention": "Key preventive agricultural measures",
   "immediateAction": "Immediate step the farmer should take today"
 }
+The severity field must contain exactly one of these values: "low", "medium", "high", or "critical".
+The confidence field must be a number from 0 to 100, without a percent sign.
 Do not include markdown code block backticks inside the JSON response. Return raw JSON string only.
 `,
 

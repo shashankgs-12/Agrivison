@@ -7,10 +7,12 @@ import { auth } from "@/auth";
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    const body = await req.json();
-    const { image, mimeType = "image/jpeg", language = "en", userId: bodyUserId } = body;
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+    }
 
-    const activeUserId = session?.user?.id || bodyUserId || null;
+    const body = await req.json();
+    const { image, mimeType = "image/jpeg", language = "en" } = body ?? {};
 
     if (!image || typeof image !== "string" || image.trim() === "") {
       return NextResponse.json(
@@ -19,33 +21,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine mimeType from base64 header if present
-    let detectedMime = mimeType;
-    if (image.startsWith("data:")) {
-      const match = image.match(/^data:(image\/[a-zA-Z+]+);base64,/);
-      if (match && match[1]) {
-        detectedMime = match[1];
-      }
-    }
-
-    // Strip data URI prefix if present
-    const base64Data = image.includes(",") ? image.split(",")[1] : image;
-
-    // Validate size (max 10MB base64 ~ 13.3MB string)
-    if (base64Data.length > 14 * 1024 * 1024) {
+    const dataUriMatch = image.match(/^data:(image\/(?:jpeg|png|webp));base64,/i);
+    const detectedMime = dataUriMatch?.[1] || mimeType;
+    const base64Data = dataUriMatch ? image.slice(dataUriMatch[0].length) : image;
+    if (
+      typeof detectedMime !== "string" ||
+      !["image/jpeg", "image/png", "image/webp"].includes(detectedMime.toLowerCase()) ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(base64Data) ||
+      base64Data.length > 14 * 1024 * 1024
+    ) {
       return NextResponse.json(
-        { error: "Selected image exceeds the maximum size limit of 10MB. Please select a smaller photo." },
+        { error: "Use a valid JPEG, PNG, or WebP image smaller than 10 MB." },
         { status: 400 }
       );
     }
 
+    const supportedLanguages = new Set(["en", "hi", "kn", "ml", "ta", "te"]);
+    const safeLanguage =
+      typeof language === "string" && supportedLanguages.has(language) ? language : "en";
     const promptText = typeof PROMPTS.PLANT_IDENTIFICATION === "function"
-      ? PROMPTS.PLANT_IDENTIFICATION(language)
+      ? PROMPTS.PLANT_IDENTIFICATION(safeLanguage)
       : PROMPTS.PLANT_IDENTIFICATION;
 
     const rawResponse = await analyzeImageWithGemini(
       base64Data,
-      detectedMime,
+      detectedMime.toLowerCase(),
       promptText
     );
 
@@ -88,7 +88,10 @@ export async function POST(req: NextRequest) {
     const formattedResult = {
       name: parsedData.name || "Unknown Plant Species",
       scientificName: parsedData.scientificName || "N/A",
-      confidence: parsedData.confidence || 92,
+      confidence:
+        typeof parsedData.confidence === "number" && Number.isFinite(parsedData.confidence)
+          ? Math.min(100, Math.max(0, parsedData.confidence))
+          : 92,
       family: parsedData.family || "N/A",
       description: parsedData.description || "No description available.",
       visibleCharacteristics: parsedData.visibleCharacteristics || "Leaf, stem, and flowering features.",
@@ -102,9 +105,9 @@ export async function POST(req: NextRequest) {
     // Save scan to PostgreSQL database using Prisma safely
     try {
       let validUserId: string | null = null;
-      if (activeUserId) {
+      if (session.user.id) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: activeUserId },
+          where: { id: session.user.id },
           select: { id: true },
         });
         if (dbUser) validUserId = dbUser.id;
@@ -113,7 +116,7 @@ export async function POST(req: NextRequest) {
       await prisma.plantScan.create({
         data: {
           userId: validUserId,
-          imageUrl: image.length > 500000 ? image.slice(0, 500000) : image, // Truncate very large base64 if needed
+          imageUrl: image.length > 500000 ? "" : image,
           plantName: formattedResult.name,
           scientificName: formattedResult.scientificName,
           confidence: Number(formattedResult.confidence),
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
           suitableSoil: formattedResult.suitableSoil,
           waterRequirement: formattedResult.waterRequirement,
           sunlightRequirement: formattedResult.sunlightRequirement,
-          language: language,
+          language: safeLanguage,
           rawResult: JSON.stringify(formattedResult),
         },
       });
@@ -173,14 +176,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await auth();
-    const url = new URL(req.url);
-    const userId = session?.user?.id || url.searchParams.get("userId");
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+    }
 
     const scans = await prisma.plantScan.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
       take: 50,
     });

@@ -1,6 +1,7 @@
 import { hash } from "bcrypt";
 import { NextRequest, NextResponse } from "next/server";
 import { registrationSchema } from "@/lib/auth/validation";
+import { findUserByPhone } from "@/lib/auth/phone-lookup";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -39,6 +40,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (parsedInput.data.phone) {
+      const existingPhone = await findUserByPhone(parsedInput.data.phone);
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: "This mobile number is already registered. Sign in instead." },
+          { status: 409 }
+        );
+      }
+    }
+
     const passwordHash = await hash(parsedInput.data.password, 12);
     const user = await prisma.user.create({
       data: {
@@ -58,6 +69,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "An account already exists with one of these details." },
+        { status: 409 }
+      );
+    }
     console.error("Registration failed", error);
     return NextResponse.json(
       { error: "Unable to create your account. Please try again." },

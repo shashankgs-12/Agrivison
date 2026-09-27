@@ -380,7 +380,7 @@ export default function FarmsPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Plant / Crop Name *</label>
                   <input
@@ -404,7 +404,7 @@ export default function FarmsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Sowing Date</label>
                   <input
@@ -427,7 +427,7 @@ export default function FarmsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Growth Stage</label>
                   <select

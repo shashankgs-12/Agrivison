@@ -18,6 +18,7 @@ export interface DailyForecast {
 }
 
 export interface DetailedWeatherData {
+  source: "live" | "fallback";
   temperature: number;
   feelsLike: number;
   condition: string;
@@ -58,6 +59,14 @@ function getWeatherConditionText(weatherCode: number, cloudCover: number = 0): s
   if (weatherCode >= 95 && weatherCode <= 99) return "Thunderstorm";
   if (cloudCover > 50) return "Cloudy";
   return "Sunny";
+}
+
+function formatForecastTime(value: string): string {
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  if (!match) return value;
+
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
 export async function fetchLiveWeather(
@@ -113,16 +122,20 @@ export async function fetchLiveWeather(
     const uvIndex = daily.uv_index_max?.[0] ?? 5;
 
     // Parse Sunrise & Sunset
-    const sunriseRaw = daily.sunrise?.[0] ? new Date(daily.sunrise[0]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:00 AM";
-    const sunsetRaw = daily.sunset?.[0] ? new Date(daily.sunset[0]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "06:30 PM";
+    const sunriseRaw = daily.sunrise?.[0] ? formatForecastTime(daily.sunrise[0]) : "06:00 AM";
+    const sunsetRaw = daily.sunset?.[0] ? formatForecastTime(daily.sunset[0]) : "06:30 PM";
 
     // Build 24-hour hourly forecast
     const hourlyList: HourlyForecast[] = [];
     if (hourly.time && Array.isArray(hourly.time)) {
-      const nowIdx = new Date().getHours();
+      const currentHour = typeof current.time === "string" ? current.time.slice(0, 13) : "";
+      const matchingHourIndex = currentHour
+        ? hourly.time.findIndex((time: string) => time.slice(0, 13) === currentHour)
+        : -1;
+      const nowIdx = matchingHourIndex >= 0 ? matchingHourIndex : new Date().getHours();
       for (let i = nowIdx; i < Math.min(nowIdx + 24, hourly.time.length); i++) {
         hourlyList.push({
-          time: new Date(hourly.time[i]).toLocaleTimeString([], { hour: "numeric", hour12: true }),
+          time: formatForecastTime(hourly.time[i]),
           temp: Math.round(hourly.temperature_2m[i]),
           humidity: Math.round(hourly.relative_humidity_2m[i]),
           rainProb: Math.round(hourly.precipitation_probability[i] ?? 0),
@@ -135,8 +148,11 @@ export async function fetchLiveWeather(
     const dailyList: DailyForecast[] = [];
     if (daily.time && Array.isArray(daily.time)) {
       for (let i = 0; i < Math.min(7, daily.time.length); i++) {
-        const d = new Date(daily.time[i]);
-        const dayName = i === 0 ? "Today" : d.toLocaleDateString("en-US", { weekday: "short" });
+        const dayName = i === 0
+          ? "Today"
+          : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(
+              new Date(`${daily.time[i]}T12:00:00Z`)
+            );
         dailyList.push({
           date: daily.time[i],
           dayName,
@@ -169,6 +185,7 @@ export async function fetchLiveWeather(
       rainProbability < 20 && humidity < 70 ? "Excellent" : rainProbability < 50 ? "Fair" : "Poor";
 
     return {
+      source: "live",
       temperature: temp,
       feelsLike,
       condition,
@@ -200,6 +217,7 @@ export async function fetchLiveWeather(
 
     // Resilient Fallback Weather Payload when offline or API is unreachable
     return {
+      source: "fallback",
       temperature: 27,
       feelsLike: 28,
       condition: "Partly Cloudy",

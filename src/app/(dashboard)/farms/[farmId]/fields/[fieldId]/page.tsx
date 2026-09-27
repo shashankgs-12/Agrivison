@@ -1,3 +1,10 @@
-export default function FieldDetailsPage() {
-  return <div>Field Details Page</div>;
+import { redirect } from "next/navigation";
+
+export default async function FieldDetailsPage({
+  params,
+}: {
+  params: Promise<{ farmId: string; fieldId: string }>;
+}) {
+  const { farmId } = await params;
+  redirect(`/farms/${encodeURIComponent(farmId)}`);
 }

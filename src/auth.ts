@@ -3,13 +3,99 @@ import { compare } from "bcrypt";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import authConfig from "@/auth.config";
 import { credentialsSchema } from "@/lib/auth/validation";
+import { findUserByPhone } from "@/lib/auth/phone-lookup";
+import { getFirebaseProjectId, getGoogleOAuthConfig } from "@/lib/auth/provider-config";
 import { prisma } from "@/lib/prisma";
+
+const firebaseSigningKeys = createRemoteJWKSet(
+  new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
+);
+
+async function authorizeFirebasePhone(idToken: unknown) {
+  const projectId = getFirebaseProjectId();
+  if (typeof idToken !== "string" || !idToken || !projectId) return null;
+
+  try {
+    const { payload } = await jwtVerify(idToken, firebaseSigningKeys, {
+      issuer: `https://securetoken.google.com/${projectId}`,
+      audience: projectId,
+      algorithms: ["RS256"],
+    });
+
+    const firebaseClaim =
+      payload.firebase && typeof payload.firebase === "object"
+        ? (payload.firebase as Record<string, unknown>)
+        : {};
+    const firebaseUid =
+      typeof payload.user_id === "string" ? payload.user_id : payload.sub;
+    const phone = payload.phone_number;
+
+    if (
+      firebaseClaim.sign_in_provider !== "phone" ||
+      typeof firebaseUid !== "string" ||
+      firebaseUid.length < 1 ||
+      firebaseUid.length > 128 ||
+      typeof phone !== "string" ||
+      !/^\+[1-9]\d{7,14}$/.test(phone)
+    ) {
+      return null;
+    }
+
+    const existingPhoneUser = await findUserByPhone(phone);
+    const user = existingPhoneUser
+      ? await prisma.user.update({
+          where: { id: existingPhoneUser.id },
+          data: { phone },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            phone: true,
+            location: true,
+            role: true,
+            subscription: true,
+            isActive: true,
+          },
+        })
+      : await prisma.user.upsert({
+          where: { id: `firebase-phone:${firebaseUid}` },
+          create: {
+            id: `firebase-phone:${firebaseUid}`,
+            phone,
+            role: "FARMER",
+            subscription: "FREE",
+          },
+          update: { phone },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            phone: true,
+            location: true,
+            role: true,
+            subscription: true,
+            isActive: true,
+          },
+        });
+
+    if (!user.isActive) return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+const googleConfig = getGoogleOAuthConfig();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "agrivision-super-secret-key-9880651312-secure-token",
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
@@ -17,10 +103,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     updateAge: 60 * 60,
   },
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
+    ...(googleConfig ? [Google(googleConfig)] : []),
     Credentials({
       name: "Email and password",
       credentials: {
@@ -69,8 +152,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.warn("Database connection issue during authentication:", dbErr);
         }
 
-        // 2. Demo & Preset Accounts Authentication
-        if (email === "farmer@agrivision.ai" || email === "farmer@agrivision.com") {
+        // Keep demo credentials out of production unless explicitly enabled.
+        const demoLoginEnabled =
+          process.env.NODE_ENV !== "production" ||
+          process.env.ENABLE_DEMO_LOGIN === "true";
+        if (
+          demoLoginEnabled &&
+          (email === "farmer@agrivision.ai" || email === "farmer@agrivision.com")
+        ) {
           if (inputPassword === "password123") {
             return {
               id: "usr-demo-farmer",
@@ -89,22 +178,66 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       },
     }),
+    Credentials({
+      id: "firebase-phone",
+      name: "Firebase phone verification",
+      credentials: {
+        idToken: { label: "Firebase ID token", type: "text" },
+      },
+      async authorize(credentials) {
+        return authorizeFirebasePhone(credentials?.idToken);
+      },
+    }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, trigger }) {
+      if (account?.provider) token.authProvider = account.provider;
+
       if (user) {
         const u = user as {
           id?: string;
+          name?: string | null;
           role?: "FARMER" | "ADMIN";
           phone?: string | null;
           location?: string | null;
           subscription?: "FREE" | "PREMIUM";
+          authProvider?: string;
+          profileComplete?: boolean;
         };
         token.id = u.id;
         token.role = u.role || "FARMER";
         token.phone = u.phone || null;
         token.location = u.location || null;
         token.subscription = u.subscription || "FREE";
+        token.profileComplete = Boolean(
+          u.name?.trim() && u.phone?.trim() && u.location?.trim()
+        );
+      }
+
+      if (trigger === "update" && typeof token.id === "string") {
+        const profile = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: {
+            name: true,
+            image: true,
+            phone: true,
+            location: true,
+            role: true,
+            subscription: true,
+          },
+        });
+
+        if (profile) {
+          token.name = profile.name;
+          token.picture = profile.image;
+          token.phone = profile.phone;
+          token.location = profile.location;
+          token.role = profile.role;
+          token.subscription = profile.subscription;
+          token.profileComplete = Boolean(
+            profile.name?.trim() && profile.phone?.trim() && profile.location?.trim()
+          );
+        }
       }
 
       return token;
@@ -117,6 +250,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           phone?: string | null;
           location?: string | null;
           subscription?: "FREE" | "PREMIUM";
+          authProvider?: string;
+          profileComplete?: boolean;
         };
         session.user = {
           ...session.user,
@@ -125,6 +260,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           phone: t.phone || null,
           location: t.location || null,
           subscription: t.subscription || "FREE",
+          authProvider: t.authProvider,
+          requiresProfileCompletion:
+            ((t.authProvider === "google" || t.authProvider === "firebase-phone") &&
+              !t.profileComplete) || false,
         };
       }
 

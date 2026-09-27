@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Mail,
   Lock,
@@ -18,12 +17,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { signIn } from "next-auth/react";
+import { getProviders, getSession, signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function SignupPage() {
-  const router = useRouter();
-  const { login: storeLogin } = useAuthStore();
+  const setUser = useAuthStore((state) => state.setUser);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -32,6 +30,21 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getProviders()
+      .then((providers) => {
+        if (active) setGoogleAvailable(Boolean(providers?.google));
+      })
+      .catch(() => {
+        if (active) setGoogleAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,19 +70,36 @@ export default function SignupPage() {
         throw new Error(data.error || "Registration failed");
       }
 
-      // Sync user into Zustand store
-      storeLogin(email, password, "farmer", fullName, phone);
+      const authResult = await signIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password,
+        redirect: false,
+      });
 
-      // Trigger NextAuth credentials sign-in
-      try {
-        await signIn("credentials", {
-          email,
-          password,
-          redirect: false,
-        });
-      } catch (authErr) {
-        console.warn("NextAuth session sync background notice:", authErr);
+      if (!authResult?.ok || authResult.error) {
+        setIsLoading(false);
+        setErrorMsg("Your account was created, but automatic sign-in failed. Please sign in with your new account.");
+        return;
       }
+
+      const session = await getSession();
+      const authenticatedUser = session?.user;
+      if (!authenticatedUser?.id) {
+        setIsLoading(false);
+        setErrorMsg("Your account was created, but your session could not be loaded. Please sign in.");
+        return;
+      }
+
+      setUser({
+        uid: authenticatedUser.id,
+        name: authenticatedUser.name || fullName,
+        email: authenticatedUser.email || email,
+        phone: authenticatedUser.phone || phone,
+        role: authenticatedUser.role === "ADMIN" ? "admin" : "farmer",
+        avatar: authenticatedUser.image || undefined,
+        location: authenticatedUser.location || "GPS Location Active",
+        subscription: authenticatedUser.subscription || "FREE",
+      });
 
       setIsLoading(false);
       setSuccessMessage(true);
@@ -85,16 +115,16 @@ export default function SignupPage() {
 
   return (
     <div className="w-full max-w-md animate-fade-in">
-      <div className="bg-white dark:bg-black rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8">
+      <div className="bg-white dark:bg-black rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
         {/* Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 mb-3">
+        <div className="text-center mb-4 sm:mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 mb-2 sm:mb-3">
             <Tractor className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-zinc-900 tracking-tight dark:text-white">
             Create Farmer Account
           </h1>
-          <p className="text-xs text-zinc-500 mt-1 dark:text-zinc-400">
+          <p className="text-xs text-zinc-600 mt-1 dark:text-zinc-400 font-medium">
             Join the AgriVision.AI smart farming platform
           </p>
         </div>
@@ -151,7 +181,8 @@ export default function SignupPage() {
             </label>
             <Input
               type="tel"
-              placeholder="10-digit mobile number"
+              autoComplete="tel"
+              placeholder="+91 9876543210"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               icon={<Phone className="h-4 w-4" />}
@@ -188,19 +219,19 @@ export default function SignupPage() {
 
           <Button
             type="submit"
-            className="w-full"
+            className="w-full font-bold cursor-pointer min-h-[44px]"
             size="lg"
             disabled={isLoading}
           >
             {isLoading ? "Creating Account..." : "Create Account"}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </form>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
+        <div className="flex items-center gap-3 my-4 sm:my-6">
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-          <span className="text-xs text-zinc-400 font-medium">or</span>
+          <span className="text-xs text-zinc-500 font-medium dark:text-zinc-400">or</span>
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
         </div>
 
@@ -208,19 +239,39 @@ export default function SignupPage() {
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className="w-full font-bold cursor-pointer min-h-[44px]"
           size="lg"
-          onClick={() => {
+          disabled={googleAvailable !== true || isLoading}
+          onClick={async () => {
+            if (googleAvailable !== true) {
+              setErrorMsg("Google sign-in is not configured. Add a valid Google OAuth Web client ID and secret, then restart the app.");
+              return;
+            }
             setIsLoading(true);
-            signIn("google", { callbackUrl: "/dashboard" });
+            setErrorMsg(null);
+            try {
+              await signIn("google", { redirectTo: "/dashboard" });
+            } catch {
+              setIsLoading(false);
+              setErrorMsg("Google sign-up could not be started. Check the Google OAuth Web client configuration.");
+            }
           }}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />
-          Sign up with Google
+          {googleAvailable === null
+            ? "Checking Google sign-in…"
+            : googleAvailable
+              ? "Sign up with Google"
+              : "Google sign-in not configured"}
         </Button>
+        {googleAvailable === false && (
+          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300">
+            Configure a real Google OAuth Web client in <code>.env.local</code> to enable this option.
+          </p>
+        )}
 
         {/* Login link */}
-        <p className="text-center text-xs text-zinc-500 mt-6 dark:text-zinc-400">
+        <p className="text-center text-xs text-zinc-600 mt-4 sm:mt-6 dark:text-zinc-400 font-medium">
           Already have an account?{" "}
           <Link
             href="/login"

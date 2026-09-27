@@ -62,6 +62,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
   }
 
   const handleDelete = () => {
+    farmCrops.forEach((crop) => deleteCrop(crop.id));
     deleteFarm(farm.id);
     router.push("/farms");
   };

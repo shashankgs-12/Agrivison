@@ -14,23 +14,47 @@ export default function ProfilePage() {
   const { user, setUser, logout } = useAuthStore();
 
   const [name, setName] = useState(user?.name || "Farmer");
-  const [email, setEmail] = useState(user?.email || "farmer@agrivision.ai");
   const [phone, setPhone] = useState(user?.phone || "+91 9880651312");
   const [location, setLocation] = useState(user?.location || "Mandya District, KA");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user) {
+    setErrorMessage(null);
+    setSavedSuccess(false);
+
+    if (!user) {
+      setErrorMessage("Sign in again before updating your profile.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, location }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.user) {
+        throw new Error(data.error || "Unable to update your profile.");
+      }
+
       setUser({
         ...user,
-        name,
-        email,
-        phone,
-        location,
+        name: data.user.name || name,
+        phone: data.user.phone || "",
+        location: data.user.location || "",
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update your profile.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -79,6 +103,11 @@ export default function ProfilePage() {
             <span>Profile updated successfully!</span>
           </div>
         )}
+        {errorMessage && (
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+            {errorMessage}
+          </div>
+        )}
 
         {/* Edit fields */}
         <form onSubmit={handleSave} className="space-y-4">
@@ -98,10 +127,14 @@ export default function ProfilePage() {
               Email Address
             </label>
             <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={user?.email || ""}
+              readOnly
+              aria-describedby="profile-email-help"
               icon={<Mail className="h-4 w-4" />}
             />
+            <p id="profile-email-help" className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+              Email address is managed by your sign-in provider.
+            </p>
           </div>
 
           <div>
@@ -127,9 +160,9 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2 space-y-3">
-            <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer" size="lg">
+            <Button type="submit" disabled={isSaving} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer" size="lg">
               <Save className="h-4 w-4 mr-1" />
-              Save Profile Changes
+              {isSaving ? "Saving Profile..." : "Save Profile Changes"}
             </Button>
 
             <Button

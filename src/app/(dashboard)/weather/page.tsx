@@ -50,7 +50,9 @@ export default function WeatherPage() {
             Hyperlocal Weather & Agricultural Intelligence
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Open-Meteo live weather API & soil moisture monitoring for {locationName}
+            {weather?.source === "fallback"
+              ? `Live weather is unavailable; estimated conditions are shown for ${locationName}.`
+              : `Open-Meteo live weather API & soil moisture monitoring for ${locationName}`}
           </p>
         </div>
 
@@ -72,6 +74,17 @@ export default function WeatherPage() {
         </div>
       )}
 
+      {weather?.source === "fallback" && (
+        <div
+          className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-300"
+          role="status"
+        >
+          Live weather data could not be reached. The displayed conditions and
+          agricultural recommendations are sample estimates; verify local
+          conditions before making farm decisions.
+        </div>
+      )}
+
       {/* Main Weather Hero Banner */}
       <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-green-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl">
         <div className="absolute right-4 bottom-0 opacity-15 pointer-events-none">
@@ -81,7 +94,11 @@ export default function WeatherPage() {
         <div className="relative z-10 max-w-2xl space-y-4">
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-200 bg-black/20 backdrop-blur-md px-3.5 py-1.5 rounded-full inline-flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 text-amber-300" />
-            Live GPS Coordinates · {locationName}
+            {weather?.source === "fallback"
+              ? `Sample estimate · ${locationName}`
+              : weather
+                ? `Live GPS Coordinates · ${locationName}`
+                : `Loading forecast · ${locationName}`}
           </span>
 
           <div className="flex items-baseline gap-4">

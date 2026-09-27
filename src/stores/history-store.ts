@@ -78,13 +78,13 @@ export const useHistoryStore = create<HistoryState>()(
         })),
       getDiseaseRecordsByUser: (userId) => {
         const state = get();
-        if (!userId) return state.diseaseRecords;
-        return state.diseaseRecords.filter((r) => r.userId === userId || !r.userId);
+        if (!userId) return [];
+        return state.diseaseRecords.filter((record) => record.userId === userId);
       },
       getPlantRecordsByUser: (userId) => {
         const state = get();
-        if (!userId) return state.plantRecords;
-        return state.plantRecords.filter((r) => r.userId === userId || !r.userId);
+        if (!userId) return [];
+        return state.plantRecords.filter((record) => record.userId === userId);
       },
     }),
     {

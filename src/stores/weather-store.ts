@@ -27,16 +27,23 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
       }
       const data = await res.json();
       if (data.success && data.weather) {
-        let locationName = locationNameOverride;
+        let locationName = locationNameOverride || data.weather.locationName;
         if (!locationName) {
-          locationName = await reverseGeocodeAddress(lat, lng);
+          try {
+            locationName = await Promise.race([
+              reverseGeocodeAddress(lat, lng),
+              new Promise<string>((resolve) => setTimeout(() => resolve(`${lat.toFixed(2)}°, ${lng.toFixed(2)}°`), 1000)),
+            ]);
+          } catch {
+            locationName = `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`;
+          }
         }
 
         const updatedWeather: DetailedWeatherData = {
           ...data.weather,
           latitude: lat,
           longitude: lng,
-          locationName: locationName || data.weather.locationName,
+          locationName: locationName || data.weather.locationName || "Mandya District, KA",
         };
 
         set({
@@ -69,10 +76,12 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   },
 
   detectGPSAndFetch: async () => {
-    set({ loading: true, error: null });
+    // If no weather exists, fetch regional default immediately so UI paints instantly
+    if (!get().weather) {
+      await get().fetchWeather(12.5218, 76.8951, "Mandya District, KA");
+    }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      await get().fetchWeather(12.9716, 77.5946);
       return;
     }
 
@@ -81,14 +90,10 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
         const { latitude, longitude } = pos.coords;
         await get().fetchWeather(latitude, longitude);
       },
-      async (err) => {
-        console.warn("GPS Permission Denied or Timeout:", err.message);
-        set({
-          error: "Location permission denied or unavailable. Showing regional default weather.",
-        });
-        await get().fetchWeather(12.5218, 76.8951);
+      (err) => {
+        console.warn("GPS notice:", err.message);
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 4000, enableHighAccuracy: false, maximumAge: 300000 }
     );
   },
 }));

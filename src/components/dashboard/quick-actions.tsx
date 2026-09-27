@@ -56,25 +56,25 @@ export function QuickActions() {
       <h3 className="text-sm font-bold text-slate-900 mb-3 dark:text-white">
         ⚡ Quick Actions
       </h3>
-      <div className="grid grid-cols-5 gap-2 md:gap-3">
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           return (
             <Link
               key={action.name}
               href={action.href}
-              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl hover:bg-slate-50 transition-all group dark:hover:bg-slate-800/50"
+              className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl hover:bg-slate-50 transition-all group dark:hover:bg-slate-800/50 min-h-[48px] justify-center cursor-pointer"
             >
               <div
                 className={cn(
-                  "h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-110",
+                  "h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-105",
                   action.color,
                   action.shadow
                 )}
               >
-                <Icon className="h-5 w-5 md:h-6 md:w-6" />
+                <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <span className="text-[10px] md:text-xs font-semibold text-slate-700 text-center leading-tight dark:text-slate-300">
+              <span className="text-[10px] sm:text-xs font-semibold text-slate-800 text-center leading-tight dark:text-slate-200">
                 {action.name}
               </span>
             </Link>

@@ -115,10 +115,10 @@ export function RecentActivity() {
                   </span>
                   <Badge variant={activity.badgeColor}>{activity.badge}</Badge>
                 </div>
-                <p className="text-[11px] text-slate-500 line-clamp-2 dark:text-slate-400 font-medium">
+                <p className="text-[11px] text-slate-600 line-clamp-2 dark:text-slate-300 font-medium">
                   {activity.description}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-1 dark:text-slate-500 font-semibold">
+                <p className="text-[10px] text-slate-500 mt-1 dark:text-slate-400 font-semibold">
                   {activity.time}
                 </p>
               </div>

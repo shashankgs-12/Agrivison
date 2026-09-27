@@ -34,14 +34,30 @@ const SCANNING_STAGES = [
   "Generating Treatment Plan...",
 ];
 
+type LocalizedValue = string | Record<string, string>;
+
+interface DiseaseDiagnosis {
+  disease: LocalizedValue;
+  scientificName?: string;
+  confidence?: number;
+  severity?: "low" | "medium" | "high" | "critical";
+  symptoms?: LocalizedValue;
+  treatment?: {
+    organic?: LocalizedValue;
+    chemical?: LocalizedValue;
+  };
+  medicineRecommendation?: string;
+  prevention?: LocalizedValue;
+  immediateAction?: string;
+}
+
 export default function DiseaseDetectionPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<DiseaseDiagnosis | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { preferences, setPreference } = useLanguageStore();
@@ -52,8 +68,15 @@ export default function DiseaseDetectionPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please upload a clear leaf image (JPG, PNG, WEBP).");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type.toLowerCase())) {
+      setErrorMsg("Please upload a JPEG, PNG, or WebP leaf image.");
+      e.currentTarget.value = "";
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg("The image is too large. Choose a file smaller than 10 MB.");
+      e.currentTarget.value = "";
       return;
     }
 
@@ -82,7 +105,7 @@ export default function DiseaseDetectionPage() {
     setErrorMsg(null);
     setStageIndex(0);
 
-    const ticker = setInterval(() => {
+    const ticker = window.setInterval(() => {
       setStageIndex((prev) => (prev < SCANNING_STAGES.length - 1 ? prev + 1 : prev));
     }, 1200);
 
@@ -93,9 +116,18 @@ export default function DiseaseDetectionPage() {
         body: JSON.stringify({ image: selectedImage }),
       });
 
-      clearInterval(ticker);
+      let data: {
+        success?: boolean;
+        isBusy?: boolean;
+        error?: string;
+        result?: DiseaseDiagnosis;
+      };
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("The server returned an unreadable response. Please try the scan again.");
+      }
 
-      const data = await res.json();
       if (!res.ok || !data.success) {
         setResult(null);
         if (
@@ -115,6 +147,9 @@ export default function DiseaseDetectionPage() {
         throw new Error(data.error || "Disease detection failed.");
       }
 
+      if (!data.result || typeof data.result !== "object") {
+        throw new Error("The AI did not return a usable diagnosis. Please try again.");
+      }
       setResult(data.result);
 
       // Save to store history
@@ -138,15 +173,21 @@ export default function DiseaseDetectionPage() {
         userId: user?.uid,
         imageUrl: selectedImage,
         diseaseName: diseaseNameStr,
-        confidence: data.result.confidence || 94,
+        confidence:
+          typeof data.result.confidence === "number" &&
+          Number.isFinite(data.result.confidence)
+            ? data.result.confidence
+            : 0,
         severity: data.result.severity || "medium",
         symptoms: symptomsStr,
         organicTreatment: organicStr,
         chemicalTreatment: chemicalStr,
       });
     } catch (err: unknown) {
+      setResult(null);
       setErrorMsg(err instanceof Error ? err.message : "Failed to scan disease. Please try again.");
     } finally {
+      window.clearInterval(ticker);
       setAnalyzing(false);
     }
   };
@@ -212,7 +253,7 @@ export default function DiseaseDetectionPage() {
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
           />
 
@@ -320,7 +361,7 @@ export default function DiseaseDetectionPage() {
                   <span className="text-xs uppercase tracking-widest text-rose-200 font-extrabold">
                     AI Diagnosis Result
                   </span>
-                  {getSeverityBadge(result.severity)}
+                  {getSeverityBadge(result.severity || "medium")}
                 </div>
                 <h2 className="text-2xl font-black mt-1">
                   {typeof result.disease === "object" ? result.disease[currentLang] || result.disease.en : result.disease}

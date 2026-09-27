@@ -11,8 +11,8 @@ export function useDiseaseRecords() {
   const deleteDiseaseRecord = useHistoryStore((state) => state.deleteDiseaseRecord);
 
   const filteredRecords = useMemo(() => {
-    if (!user?.uid) return diseaseRecords;
-    return diseaseRecords.filter((r) => r.userId === user.uid || !r.userId);
+    if (!user?.uid) return [];
+    return diseaseRecords.filter((record) => record.userId === user.uid);
   }, [diseaseRecords, user]);
 
   return {
@@ -30,8 +30,8 @@ export function usePlantRecords() {
   const deletePlantRecord = useHistoryStore((state) => state.deletePlantRecord);
 
   const filteredRecords = useMemo(() => {
-    if (!user?.uid) return plantRecords;
-    return plantRecords.filter((r) => r.userId === user.uid || !r.userId);
+    if (!user?.uid) return [];
+    return plantRecords.filter((record) => record.userId === user.uid);
   }, [plantRecords, user]);
 
   return {

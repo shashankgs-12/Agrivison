@@ -6,7 +6,6 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import { usePlantRecords } from "@/hooks/use-history";
-import { useAuthStore } from "@/stores/auth-store";
 
 interface DbPlantScan {
   id: string;
@@ -19,7 +18,6 @@ interface DbPlantScan {
 }
 
 export default function PlantHistoryPage() {
-  const { user } = useAuthStore();
   const { plantRecords, deletePlantRecord: deleteRecord } = usePlantRecords();
   const [dbScans, setDbScans] = useState<DbPlantScan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +25,9 @@ export default function PlantHistoryPage() {
   useEffect(() => {
     async function fetchDbScans() {
       try {
-        const query = user?.uid ? `?userId=${encodeURIComponent(user.uid)}` : "";
-        const res = await fetch(`/api/ai/identify-plant${query}`);
+        const res = await fetch("/api/ai/identify-plant", {
+          signal: AbortSignal.timeout(10000),
+        });
         const data = await res.json();
         if (data.success && Array.isArray(data.scans) && data.scans.length > 0) {
           setDbScans(data.scans);
@@ -40,7 +39,7 @@ export default function PlantHistoryPage() {
       }
     }
     fetchDbScans();
-  }, [user?.uid]);
+  }, []);
 
   // Combine database scans with client store fallback
   const displayRecords = dbScans.length > 0

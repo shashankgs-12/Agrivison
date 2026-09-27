@@ -29,6 +29,7 @@ export default function CropsPage() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState(() => ({
@@ -43,17 +44,31 @@ export default function CropsPage() {
     health: "Excellent" as Crop["health"],
     diseaseStatus: "Healthy",
   }));
+  const selectedFarm = farms.find((farm) => farm.id === formData.farmId);
 
   const handleCreateCrop = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.farmId) return;
+    if (!formData.name.trim() || !selectedFarm) {
+      setFormError("Choose a farm and enter a crop name.");
+      return;
+    }
 
-    const selectedFarm = farms.find((f) => f.id === formData.farmId);
+    if (!Number.isFinite(formData.area) || formData.area <= 0 || formData.area > selectedFarm.area) {
+      setFormError(`Crop area must be greater than 0 and no more than ${selectedFarm.area} acres.`);
+      return;
+    }
+
+    if (Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate)) {
+      setFormError("Expected harvest date must be on or after the sowing date.");
+      return;
+    }
+
+    setFormError(null);
 
     addCrop({
       ownerId: user?.uid,
       farmId: formData.farmId,
-      farmName: selectedFarm ? selectedFarm.name : "My Farm",
+      farmName: selectedFarm.name,
       name: formData.name,
       variety: formData.variety,
       sowingDate: formData.sowingDate,
@@ -90,6 +105,7 @@ export default function CropsPage() {
       if (now >= harvest) return 100;
 
       const totalDuration = harvest - sowing;
+      if (!Number.isFinite(totalDuration) || totalDuration <= 0) return 0;
       const elapsed = now - sowing;
 
       return Math.min(100, Math.max(1, Math.round((elapsed / totalDuration) * 100)));
@@ -181,6 +197,12 @@ export default function CropsPage() {
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                           {crop.name} {crop.variety ? `(${crop.variety})` : ""}
                         </h3>
+                        <Link
+                          href={`/crops/${crop.id}`}
+                          className="mt-1 inline-flex text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+                        >
+                          View crop details
+                        </Link>
                       </div>
                       <Badge className="bg-emerald-100 text-emerald-800 font-bold border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300">
                         {crop.health}
@@ -265,7 +287,16 @@ export default function CropsPage() {
                 <select
                   required
                   value={formData.farmId}
-                  onChange={(e) => setFormData({ ...formData, farmId: e.target.value })}
+                  onChange={(e) => {
+                    const farmId = e.target.value;
+                    const farm = farms.find((item) => item.id === farmId);
+                    setFormError(null);
+                    setFormData({
+                      ...formData,
+                      farmId,
+                      area: farm ? Math.min(formData.area, farm.area) : formData.area,
+                    });
+                  }}
                   className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold"
                 >
                   <option value="">-- Choose Farm --</option>
@@ -349,10 +380,15 @@ export default function CropsPage() {
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Area (Acres)</label>
                   <input
                     type="number"
-                    step="0.5"
+                    min="0.1"
+                    max={selectedFarm?.area}
+                    step="0.1"
                     required
                     value={formData.area}
-                    onChange={(e) => setFormData({ ...formData, area: Number(e.target.value) })}
+                    onChange={(e) => {
+                      setFormError(null);
+                      setFormData({ ...formData, area: Number(e.target.value) });
+                    }}
                     className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   />
                 </div>
@@ -370,6 +406,12 @@ export default function CropsPage() {
                   </select>
                 </div>
               </div>
+
+              {formError && (
+                <p role="alert" className="text-xs font-semibold text-rose-600">
+                  {formError}
+                </p>
+              )}
 
               <div className="pt-3 flex gap-3">
                 <Button

@@ -91,7 +91,7 @@ export function Sidebar() {
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative",
                   isActive
                     ? "bg-[#008631]/10 text-[#00ab41] font-bold dark:bg-[#00ab41]/15 dark:text-[#00ab41]"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+                    : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
                 )}
               >
                 {/* Active Indicator Bar */}
@@ -103,7 +103,7 @@ export function Sidebar() {
                     "h-5 w-5 shrink-0 transition-colors",
                     isActive
                       ? "text-[#00ab41]"
-                      : "text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300"
+                      : "text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-200"
                   )}
                 />
                 {sidebarOpen && <span>{item.name}</span>}
