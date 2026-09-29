@@ -1,52 +1,25 @@
 export const AI_LANGUAGES = ["en", "kn", "hi", "te", "ta", "ml"] as const;
 
 export const PROMPTS = {
-  DISEASE_DETECTION: `
+  DISEASE_DETECTION: (userLanguage: string = "en") => `
 You are an expert agricultural plant pathologist specializing in crop disease diagnosis for farming.
 Analyze the provided image of the crop leaf or plant. Identify any diseases, pests, or nutritional deficiencies present.
+Respond only in the requested language: "${userLanguage}". Be cautious: if the image is unclear or no disease can be identified, state that clearly and use low confidence. Never invent a diagnosis or treatment.
 
 Return a valid JSON object strictly matching this schema:
 {
-  "disease": {
-    "en": "English disease name",
-    "kn": "Kannada disease name (ಕನ್ನಡ)",
-    "hi": "Hindi disease name (हिंदी)",
-    "te": "Telugu disease name (తెలుగు)",
-    "ta": "Tamil disease name (தமிழ்)",
-    "ml": "Malayalam disease name (മലയാളം)"
-  },
+  "disease": "Disease or condition name in the requested language",
   "scientificName": "Scientific name",
   "confidence": 94,
   "severity": "medium",
-  "symptoms": {
-    "en": "Detailed symptoms description in English",
-    "kn": "Kannada symptoms description",
-    "hi": "Hindi symptoms description",
-    "te": "Telugu symptoms description",
-    "ta": "Tamil symptoms description",
-    "ml": "Malayalam symptoms description"
-  },
+  "symptoms": "Visible symptoms in the requested language",
   "treatment": {
-    "organic": {
-      "en": "Organic remedy and bio-control methods in English",
-      "kn": "Kannada organic treatment",
-      "hi": "Hindi organic treatment",
-      "te": "Telugu organic treatment",
-      "ta": "Tamil organic treatment",
-      "ml": "Malayalam organic treatment"
-    },
-    "chemical": {
-      "en": "Chemical fungicide/pesticide dosage in English",
-      "kn": "Kannada chemical treatment",
-      "hi": "Hindi chemical treatment",
-      "te": "Telugu chemical treatment",
-      "ta": "Tamil chemical treatment",
-      "ml": "Malayalam chemical treatment"
-    }
+    "organic": "Organic remedy in the requested language",
+    "chemical": "Chemical treatment, including label-safe dosage guidance, in the requested language"
   },
-  "medicineRecommendation": "Recommended commercial medicine/spray",
-  "prevention": "Key preventive agricultural measures",
-  "immediateAction": "Immediate step the farmer should take today"
+  "medicineRecommendation": "Medicine recommendation in the requested language",
+  "prevention": "Prevention in the requested language",
+  "immediateAction": "Immediate step in the requested language"
 }
 The severity field must contain exactly one of these values: "low", "medium", "high", or "critical".
 The confidence field must be a number from 0 to 100, without a percent sign.

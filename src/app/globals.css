@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================
    Leaflet Map Core Styles & Edge Tile Seam Fix
    ============================================ */
@@ -90,13 +92,11 @@
   --border-color: #e4e4e7;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;     /* Perfect Pitch Black in dark mode */
-    --foreground: #f4f4f5;
-    --surface: #0a0a0a;
-    --border-color: #1f1f23;
-  }
+.dark {
+  --background: #000000;
+  --foreground: #f4f4f5;
+  --surface: #0a0a0a;
+  --border-color: #1f1f23;
 }
 
 /* ============================================
@@ -107,6 +107,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ============================================

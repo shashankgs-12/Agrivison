@@ -28,7 +28,7 @@ import { useDiseaseRecords } from "@/hooks/use-history";
 
 export function Header() {
   const router = useRouter();
-  const { toggleSidebar, toggleMobileMenu, theme, toggleTheme } = useUIStore();
+  const { toggleMobileMenu, theme, toggleTheme } = useUIStore();
   const { preferences, setPreference } = useLanguageStore();
   const { user, logout } = useAuthStore();
   const { diseaseRecords } = useDiseaseRecords();
@@ -43,7 +43,7 @@ export function Header() {
 
   const userName = user?.name || "Farmer";
   const userRole = user?.role ? user.role.replace("_", " ") : "Farmer";
-  const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userName)}`;
+  const userAvatar = user?.avatar;
 
   const activeAlerts = diseaseRecords.filter(
     (r) => r.severity === "critical" || r.severity === "high"

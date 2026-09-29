@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { MapPin, Phone, UserRound } from "lucide-react";
+import { MapPin, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -61,7 +62,9 @@ export default function CompleteProfilePage() {
         throw new Error(payload.error || "Unable to save your profile.");
       }
 
-      const refreshedSession = await update();
+      // Passing data (even an empty object) makes Auth.js run the JWT update
+      // callback, which reloads the just-saved profile from PostgreSQL.
+      const refreshedSession = await update({});
       if (!refreshedSession?.user || refreshedSession.user.requiresProfileCompletion) {
         throw new Error(
           "Your profile was saved, but your session did not refresh. Please try saving again."
@@ -115,20 +118,18 @@ export default function CompleteProfilePage() {
           <label htmlFor="profile-phone" className="mb-1.5 block text-sm font-semibold">
             Mobile number
           </label>
-          <Input
+          <PhoneNumberInput
             id="profile-phone"
-            type="tel"
-            autoComplete="tel"
             required
-            maxLength={25}
-            placeholder="+91 9876543210"
+            placeholder="Mobile number"
             value={phoneValue}
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={setPhone}
             disabled={phoneVerified}
-            icon={<Phone className="h-4 w-4" />}
           />
           <p className="mt-1 text-xs text-slate-500">
-            {phoneVerified ? "This number was verified with SMS." : "Include your country calling code."}
+            {phoneVerified
+              ? "This number was verified with SMS."
+              : "Select your country, then enter your mobile number."}
           </p>
         </div>
 

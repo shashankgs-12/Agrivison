@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface UIState {
   sidebarOpen: boolean;
@@ -13,35 +14,43 @@ interface UIState {
   toggleTheme: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: true,
-  isMobileMenuOpen: false,
-  theme: "dark",
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
-  toggleMobileMenu: () => set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
-  closeMobileMenu: () => set({ isMobileMenuOpen: false }),
-  setTheme: (theme) => {
-    if (typeof document !== "undefined") {
-      if (theme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    }
-    set({ theme });
-  },
-  toggleTheme: () =>
-    set((state) => {
-      const nextTheme = state.theme === "dark" ? "light" : "dark";
-      if (typeof document !== "undefined") {
-        if (nextTheme === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
+export const useUIStore = create<UIState>()(
+  persist<UIState, [], [], Pick<UIState, "theme">>(
+    (set) => ({
+      sidebarOpen: true,
+      isMobileMenuOpen: false,
+      theme: "dark",
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
+      toggleMobileMenu: () => set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
+      closeMobileMenu: () => set({ isMobileMenuOpen: false }),
+      setTheme: (theme) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.classList.toggle("dark", theme === "dark");
         }
-      }
-      return { theme: nextTheme };
+        set({ theme });
+      },
+      toggleTheme: () =>
+        set((state) => {
+          const nextTheme = state.theme === "dark" ? "light" : "dark";
+          if (typeof document !== "undefined") {
+            document.documentElement.classList.toggle("dark", nextTheme === "dark");
+          }
+          return { theme: nextTheme };
+        }),
     }),
-}));
+    {
+      name: "agrivision-ui-preferences",
+      partialize: (state) => ({ theme: state.theme }),
+      onRehydrateStorage: () => (state) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.classList.toggle(
+            "dark",
+            (state?.theme ?? "dark") === "dark"
+          );
+        }
+      },
+    }
+  )
+);

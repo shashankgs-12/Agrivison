@@ -26,18 +26,20 @@ import { useHistoryStore } from "@/stores/history-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import { CameraModal } from "@/components/shared/camera-modal";
+import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
 
 const LOADING_STAGES = [
-  "Uploading Image...",
-  "Analyzing Plant Features...",
-  "Querying Gemini AI...",
-  "Almost Done...",
+  "Preparing the plant image...",
+  "Analyzing with Gemini 3.5 Flash-Lite...",
+  "Checking crop and plant features...",
+  "Preparing the identification...",
 ];
 
 export default function PlantIdentificationPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
   const [loadingStage, setLoadingStage] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,28 +50,47 @@ export default function PlantIdentificationPage() {
   const { addPlantRecord } = useHistoryStore();
   const { user } = useAuthStore();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please select a valid image file (JPG, PNG, WEBP).");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type.toLowerCase())) {
+      setErrorMsg("Please select a valid JPEG, PNG, or WebP image.");
+      input.value = "";
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setErrorMsg("This image is too large to process. Choose a photo under 20 MB.");
+      input.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result as string);
+    setProcessingImage(true);
+    setErrorMsg(null);
+    try {
+      const image = await prepareImageForAnalysis(file);
+      setSelectedImage(image);
       setResult(null);
-      setErrorMsg(null);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Could not prepare this image.");
+    } finally {
+      setProcessingImage(false);
+      input.value = "";
+    }
   };
 
-  const handleCameraCapture = (base64Image: string) => {
-    setSelectedImage(base64Image);
-    setResult(null);
+  const handleCameraCapture = async (base64Image: string) => {
+    setProcessingImage(true);
     setErrorMsg(null);
+    try {
+      setSelectedImage(await prepareImageForAnalysis(base64Image));
+      setResult(null);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Could not prepare this image.");
+    } finally {
+      setProcessingImage(false);
+    }
   };
 
   const handleIdentify = async () => {
@@ -83,7 +104,7 @@ export default function PlantIdentificationPage() {
     setLoadingStage(0);
 
     // Dynamic stage ticker for smooth UX
-    const stageInterval = setInterval(() => {
+    const stageInterval = window.setInterval(() => {
       setLoadingStage((prev) => (prev < LOADING_STAGES.length - 1 ? prev + 1 : prev));
     }, 1200);
 
@@ -94,11 +115,9 @@ export default function PlantIdentificationPage() {
         body: JSON.stringify({
           image: selectedImage,
           language: currentLang,
-          userId: user?.uid,
         }),
+        signal: AbortSignal.timeout(75_000),
       });
-
-      clearInterval(stageInterval);
 
       const data = await res.json();
       if (!res.ok || data.success === false) {
@@ -127,18 +146,24 @@ export default function PlantIdentificationPage() {
       setResult(data.result);
 
       // Save to client store history as fallback
-      addPlantRecord({
-        userId: user?.uid,
-        imageUrl: selectedImage,
-        plantName: typeof data.result.name === "object" ? data.result.name[currentLang] || data.result.name.en : data.result.name,
-        scientificName: data.result.scientificName || "",
-        family: data.result.family || "",
-        confidence: data.result.confidence || 95,
-        growingSeason: data.result.visibleCharacteristics || "",
-        optimalSoil: data.result.suitableSoil || "",
-        waterRequirement: data.result.waterRequirement || "",
-        harvestCycle: data.result.sunlightRequirement || "",
-      });
+      try {
+        addPlantRecord({
+          userId: user?.uid,
+          // Keep the selected image in component state for this session only.
+          // The history store strips data/blob URLs before updating or saving.
+          imageUrl: selectedImage,
+          plantName: typeof data.result.name === "object" ? data.result.name[currentLang] || data.result.name.en : data.result.name,
+          scientificName: data.result.scientificName || "",
+          family: data.result.family || "",
+          confidence: data.result.confidence,
+          growingSeason: data.result.visibleCharacteristics || "",
+          optimalSoil: data.result.suitableSoil || "",
+          waterRequirement: data.result.waterRequirement || "",
+          harvestCycle: data.result.sunlightRequirement || "",
+        });
+      } catch (historyError) {
+        console.warn("Plant identification succeeded, but scan history could not be saved.", historyError);
+      }
     } catch (err: unknown) {
       setResult(null);
       const msg = err instanceof Error ? err.message : "Failed to identify plant.";
@@ -155,6 +180,7 @@ export default function PlantIdentificationPage() {
         setErrorMsg(msg);
       }
     } finally {
+      window.clearInterval(stageInterval);
       setAnalyzing(false);
     }
   };
@@ -208,7 +234,7 @@ export default function PlantIdentificationPage() {
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
           />
 
@@ -246,7 +272,7 @@ export default function PlantIdentificationPage() {
               className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
               size="lg"
               onClick={() => setIsCameraOpen(true)}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
             >
               <Camera className="h-5 w-5 mr-2" />
               Take Photo
@@ -256,7 +282,7 @@ export default function PlantIdentificationPage() {
               className="flex-1 font-bold border-slate-300 cursor-pointer"
               size="lg"
               onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
             >
               <Upload className="h-5 w-5 mr-2" />
               Upload Image
@@ -266,11 +292,15 @@ export default function PlantIdentificationPage() {
           {selectedImage && (
             <Button
               onClick={handleIdentify}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
               className="w-full py-6 text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-500 hover:to-teal-500 cursor-pointer"
             >
               <Sparkles className="h-5 w-5 mr-2 animate-spin-slow" />
-              {analyzing ? LOADING_STAGES[loadingStage] : "Identify Plant with AI"}
+              {processingImage
+                ? "Optimizing image…"
+                : analyzing
+                  ? LOADING_STAGES[loadingStage]
+                  : "Identify Plant with AI"}
             </Button>
           )}
 
@@ -309,6 +339,9 @@ export default function PlantIdentificationPage() {
             <h3 className="text-base font-bold text-slate-800 dark:text-white">
               {LOADING_STAGES[loadingStage]}
             </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              If Gemini 3.5 Flash-Lite is busy or unavailable, Gemini 3.8 Flash is tried automatically.
+            </p>
             <div className="w-full bg-slate-100 rounded-full h-2 max-w-xs mx-auto overflow-hidden dark:bg-slate-800">
               <div
                 className="bg-emerald-500 h-2 rounded-full transition-all duration-500"

@@ -14,6 +14,7 @@ import {
   History,
   Languages,
   AlertCircle,
+  RefreshCw,
   Pill,
   Leaf,
   FlaskConical,
@@ -26,12 +27,13 @@ import { useHistoryStore } from "@/stores/history-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import { CameraModal } from "@/components/shared/camera-modal";
+import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
 
 const SCANNING_STAGES = [
-  "Uploading Leaf Image...",
-  "Analyzing Symptoms...",
-  "Classifying Pathogen with Gemini AI...",
-  "Generating Treatment Plan...",
+  "Preparing the leaf image...",
+  "Analyzing symptoms with Gemini 3.5 Flash-Lite...",
+  "Checking disease patterns...",
+  "Preparing the diagnosis...",
 ];
 
 type LocalizedValue = string | Record<string, string>;
@@ -55,6 +57,7 @@ export default function DiseaseDetectionPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<DiseaseDiagnosis | null>(null);
@@ -64,35 +67,47 @@ export default function DiseaseDetectionPage() {
   const { addDiseaseRecord } = useHistoryStore();
   const { user } = useAuthStore();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type.toLowerCase())) {
       setErrorMsg("Please upload a JPEG, PNG, or WebP leaf image.");
-      e.currentTarget.value = "";
+      input.value = "";
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMsg("The image is too large. Choose a file smaller than 10 MB.");
-      e.currentTarget.value = "";
+    if (file.size > 20 * 1024 * 1024) {
+      setErrorMsg("The image is too large. Choose a photo under 20 MB.");
+      input.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result as string);
+    setProcessingImage(true);
+    setErrorMsg(null);
+    try {
+      setSelectedImage(await prepareImageForAnalysis(file));
       setResult(null);
-      setErrorMsg(null);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Could not prepare this image.");
+    } finally {
+      setProcessingImage(false);
+      input.value = "";
+    }
   };
 
-  const handleCameraCapture = (base64Image: string) => {
-    setSelectedImage(base64Image);
-    setResult(null);
+  const handleCameraCapture = async (base64Image: string) => {
+    setProcessingImage(true);
     setErrorMsg(null);
+    try {
+      setSelectedImage(await prepareImageForAnalysis(base64Image));
+      setResult(null);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Could not prepare this image.");
+    } finally {
+      setProcessingImage(false);
+    }
   };
 
   const handleScan = async () => {
@@ -113,7 +128,8 @@ export default function DiseaseDetectionPage() {
       const res = await fetch("/api/ai/detect-disease", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage }),
+        body: JSON.stringify({ image: selectedImage, language: currentLang }),
+        signal: AbortSignal.timeout(75_000),
       });
 
       let data: {
@@ -169,20 +185,28 @@ export default function DiseaseDetectionPage() {
         ? data.result.treatment?.chemical?.en || ""
         : data.result.treatment?.chemical || "";
 
-      addDiseaseRecord({
-        userId: user?.uid,
-        imageUrl: selectedImage,
-        diseaseName: diseaseNameStr,
-        confidence:
-          typeof data.result.confidence === "number" &&
-          Number.isFinite(data.result.confidence)
-            ? data.result.confidence
-            : 0,
-        severity: data.result.severity || "medium",
-        symptoms: symptomsStr,
-        organicTreatment: organicStr,
-        chemicalTreatment: chemicalStr,
-      });
+      try {
+        addDiseaseRecord({
+          userId: user?.uid,
+          // The history store keeps durable URLs only and drops this transient
+          // data URL so the uploaded image remains in memory for this scan but
+          // is never copied into localStorage.
+          imageUrl: selectedImage,
+          diseaseName: diseaseNameStr,
+          confidence:
+            typeof data.result.confidence === "number" &&
+            Number.isFinite(data.result.confidence)
+              ? data.result.confidence
+              : 0,
+          severity: data.result.severity || "medium",
+          symptoms: symptomsStr,
+          organicTreatment: organicStr,
+          chemicalTreatment: chemicalStr,
+        });
+      } catch (historyError) {
+        // A history persistence problem must not hide a successful diagnosis.
+        console.warn("Disease diagnosis succeeded, but scan history could not be saved.", historyError);
+      }
     } catch (err: unknown) {
       setResult(null);
       setErrorMsg(err instanceof Error ? err.message : "Failed to scan disease. Please try again.");
@@ -216,7 +240,7 @@ export default function DiseaseDetectionPage() {
             AI Disease Scanner
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Instant leaf disease classification and treatment plans powered by Gemini 2.5 Flash
+            Leaf disease analysis and treatment guidance powered by Gemini AI
           </p>
         </div>
         <Link href="/disease-detection/history">
@@ -291,7 +315,7 @@ export default function DiseaseDetectionPage() {
               className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold"
               size="lg"
               onClick={() => setIsCameraOpen(true)}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
             >
               <Camera className="h-5 w-5 mr-2" />
               Take Photo
@@ -301,7 +325,7 @@ export default function DiseaseDetectionPage() {
               className="flex-1 font-bold border-slate-300"
               size="lg"
               onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
             >
               <Upload className="h-5 w-5 mr-2" />
               Upload Image
@@ -311,18 +335,29 @@ export default function DiseaseDetectionPage() {
           {selectedImage && (
             <Button
               onClick={handleScan}
-              disabled={analyzing}
+              disabled={analyzing || processingImage}
               className="w-full py-6 text-base font-bold bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-lg shadow-rose-900/20 hover:from-rose-500 hover:to-red-500"
             >
               <Sparkles className="h-5 w-5 mr-2 animate-spin-slow" />
-              {analyzing ? SCANNING_STAGES[stageIndex] : "Scan Disease with AI"}
+              {processingImage
+                ? "Optimizing image…"
+                : analyzing
+                  ? SCANNING_STAGES[stageIndex]
+                  : "Scan Disease with AI"}
             </Button>
           )}
 
           {errorMsg && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-              <AlertCircle className="h-4 w-4" />
-              <span>{errorMsg}</span>
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+              <span className="flex min-w-0 items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </span>
+              {selectedImage && (
+                <Button type="button" variant="outline" size="sm" onClick={handleScan} disabled={analyzing}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Try Again
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -338,6 +373,9 @@ export default function DiseaseDetectionPage() {
             <h3 className="text-base font-bold text-slate-800 dark:text-white">
               {SCANNING_STAGES[stageIndex]}
             </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              If Gemini 3.5 Flash-Lite is busy or unavailable, Gemini 3.8 Flash is tried automatically.
+            </p>
             <div className="w-full bg-slate-100 rounded-full h-2 max-w-xs mx-auto overflow-hidden dark:bg-slate-800">
               <div
                 className="bg-rose-500 h-2 rounded-full transition-all duration-500"

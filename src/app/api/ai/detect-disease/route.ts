@@ -17,18 +17,15 @@ const diseaseResultSchema = z.object({
       (value) =>
         typeof value === "string" ? Number.parseFloat(value.replace(/%$/, "")) : value,
       z.number().finite().min(0).max(100)
-    )
-    .optional()
-    .default(0),
+    ),
   severity: z
     .preprocess((value) => {
-      const normalized = String(value ?? "medium").trim().toLowerCase();
+      const normalized = String(value ?? "").trim().toLowerCase();
       if (["moderate", "moderately severe"].includes(normalized)) return "medium";
       if (normalized === "severe") return "high";
       if (["none", "healthy", "no disease"].includes(normalized)) return "low";
       return normalized;
-    }, z.enum(["low", "medium", "high", "critical"]))
-    .default("medium"),
+    }, z.enum(["low", "medium", "high", "critical"])),
   symptoms: localizedTextSchema.optional(),
   treatment: z
     .object({
@@ -146,9 +143,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "A valid image is required." }, { status: 400 });
     }
 
-    const { image, mimeType = "image/jpeg" } = payload as {
+    const { image, mimeType = "image/jpeg", language = "en" } = payload as {
       image?: unknown;
       mimeType?: unknown;
+      language?: unknown;
     };
 
     if (typeof image !== "string" || image.trim() === "") {
@@ -174,10 +172,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Call Gemini API with Disease Detection Prompt
+    const supportedLanguages = new Set(["en", "hi", "kn", "ml", "ta", "te"]);
+    const safeLanguage =
+      typeof language === "string" && supportedLanguages.has(language) ? language : "en";
     const rawResponse = await analyzeImageWithGemini(
       base64Data,
       detectedMime.toLowerCase(),
-      PROMPTS.DISEASE_DETECTION
+      PROMPTS.DISEASE_DETECTION(safeLanguage),
+      "disease-detection"
     );
 
     if (!rawResponse) {
@@ -186,27 +188,34 @@ export async function POST(req: NextRequest) {
 
     const parsedData = parseDiseaseResponse(rawResponse);
 
+    if (parsedData.confidence < 40) {
+      return NextResponse.json(
+        {
+          success: false,
+          retryable: true,
+          error:
+            "The AI could not confidently identify a disease from this image. Try a sharper close-up of the affected leaf.",
+        },
+        { status: 422 }
+      );
+    }
+
     return NextResponse.json({ success: true, result: parsedData });
   } catch (error: unknown) {
     console.error("Disease Detection Error:", error);
 
-    const isBusy =
-      (error instanceof GeminiServiceError && (error.status === 503 || error.isBusy)) ||
-      (error instanceof Error &&
-        (error.message.includes("503") ||
-          error.message.includes("high demand") ||
-          error.message.includes("busy") ||
-          error.message.includes("overloaded")));
-
-    if (isBusy) {
+    if (error instanceof GeminiServiceError) {
+      const status = error.retryable ? (error.status === 504 ? 504 : 503) : 502;
       return NextResponse.json(
         {
           success: false,
-          isBusy: true,
-          error:
-            "Disease detection is temporarily unavailable. The AI service is currently busy. Please try again in a few moments.",
+          retryable: error.retryable,
+          isBusy: error.retryable,
+          error: error.retryable
+            ? "Both AI models are temporarily unavailable. Your image is still selected; please try again shortly."
+            : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP leaf photo.",
         },
-        { status: 503 }
+        { status }
       );
     }
 

@@ -1,26 +1,29 @@
-// Supported Google Gemini Models (Primary + Active Fallbacks)
-export const GEMINI_MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
+import {
+  runGeminiModelFallback,
+} from "@/lib/ai/gemini-model-fallback";
+
+export { GeminiServiceError } from "@/lib/ai/gemini-model-fallback";
+
+/** The REST endpoint supplies the `models/` path segment; entries stay bare IDs. */
+export const GEMINI_IMAGE_MODELS = [
   "gemini-3.5-flash-lite",
-  "gemini-flash-latest",
+  "gemini-3.8-flash",
 ] as const;
 
-export class GeminiServiceError extends Error {
-  status: number;
-  isBusy: boolean;
-
-  constructor(message: string, status: number, isBusy = false) {
-    super(message);
-    this.name = "GeminiServiceError";
-    this.status = status;
-    this.isBusy = isBusy;
-  }
-}
+// Keep text chat on its existing preferred model while sharing the bounded
+// transient-error policy. Image analysis uses the explicit fast/fallback pair above.
+const GEMINI_TEXT_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash"] as const;
+const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
+const MAX_PROVIDER_ERROR_CHARS = 4_000;
 
 function getApiKey(): string {
   const key = process.env.GEMINI_API_KEY;
-  if (!key || key.trim() === "" || key === "your_gemini_api_key" || key === "your-gemini-api-key") {
+  if (
+    !key ||
+    key.trim() === "" ||
+    key === "your_gemini_api_key" ||
+    key === "your-gemini-api-key"
+  ) {
     throw new Error("GEMINI_API_KEY environment variable is not configured in .env or .env.local.");
   }
   return key.trim();
@@ -43,111 +46,93 @@ interface GeminiCandidate {
   }>;
 }
 
-/**
- * Executes a Gemini API POST request with exponential backoff and model fallback on HTTP 503 / 429.
- */
-async function postGeminiWithRetry(requestBody: object, maxRetries = GEMINI_MODELS.length): Promise<GeminiCandidate> {
-  const apiKey = getApiKey();
-  let lastError: Error | null = null;
-  let lastStatus = 500;
-  let isBusy = false;
+interface GeminiErrorPayload {
+  error?: {
+    code?: number;
+    status?: string;
+    message?: string;
+  };
+}
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    // Select model candidate for this attempt
-    const modelName = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+class GeminiApiAttemptError extends Error {
+  readonly status: number;
+  readonly code: string;
 
+  constructor(status: number, message: string, code = "") {
+    super(message);
+    this.name = "GeminiApiAttemptError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function requestGeminiModel(
+  requestBody: object,
+  modelName: string,
+  apiKey: string
+): Promise<GeminiCandidate> {
+  // Gemini REST takes the model name after `/models/`; do not prefix the ID itself.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const responseText = (await response.text()).slice(0, MAX_PROVIDER_ERROR_CHARS);
+    let message = responseText || "Gemini request failed.";
+    let providerCode = "";
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      }
-
-      lastStatus = response.status;
-      const errText = await response.text();
-      let googleMessage = "";
-
-      try {
-        const parsed = JSON.parse(errText);
-        if (parsed?.error?.message) {
-          googleMessage = parsed.error.message;
-        }
-      } catch {
-        // Non-JSON response
-      }
-
-      const rawErrorMessage = googleMessage || errText || "Request failed.";
-      const safeErrorMessage = maskApiKey(rawErrorMessage, apiKey);
-
-      // Identify 503 Service Unavailable / 429 Rate Limit / High Demand
-      const is503OrBusy =
-        response.status === 503 ||
-        response.status === 429 ||
-        safeErrorMessage.toLowerCase().includes("high demand") ||
-        safeErrorMessage.toLowerCase().includes("overloaded") ||
-        safeErrorMessage.toLowerCase().includes("capacity");
-
-      if (is503OrBusy) {
-        isBusy = true;
-        console.warn(
-          `Gemini API [${modelName}] high demand / 503 on attempt ${attempt + 1}/${maxRetries}. Retrying...`
-        );
-      } else {
-        console.error(`Gemini API Error [HTTP ${response.status}] model=${modelName}:`, safeErrorMessage);
-      }
-
-      lastError = new GeminiServiceError(
-        is503OrBusy
-          ? "The model is currently experiencing high demand. Please try again in a few moments."
-          : safeErrorMessage,
-        response.status,
-        is503OrBusy
-      );
-
-      // If it's a non-retryable error (e.g. 400 Bad Request or 401 Unauthorized), fail fast
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        throw lastError;
-      }
-    } catch (err: unknown) {
-      if (err instanceof GeminiServiceError && (err.status === 400 || err.status === 401 || err.status === 403)) {
-        throw err;
-      }
-
-      const message = err instanceof Error ? err.message : String(err);
-      const safeMsg = maskApiKey(message, apiKey);
-      lastError = err instanceof GeminiServiceError ? err : new GeminiServiceError(safeMsg, lastStatus, isBusy);
+      const parsed = JSON.parse(responseText) as GeminiErrorPayload;
+      message = parsed.error?.message || message;
+      providerCode = parsed.error?.status || "";
+    } catch {
+      // Keep a bounded plain-text provider message for failure classification only.
     }
-
-    // Wait with exponential backoff before next attempt
-    if (attempt < maxRetries - 1) {
-      const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
+    throw new GeminiApiAttemptError(response.status, message, providerCode);
   }
 
-  throw (
-    lastError ||
-    new GeminiServiceError(
-      "The AI service is currently busy. Please try again in a few moments.",
-      lastStatus,
-      isBusy
-    )
-  );
+  return (await response.json()) as GeminiCandidate;
+}
+
+async function postGeminiWithFallback(
+  requestBody: object,
+  task: string,
+  models: readonly string[]
+): Promise<GeminiCandidate> {
+  const apiKey = getApiKey();
+  const { value } = await runGeminiModelFallback({
+    models,
+    attempt: (model) => requestGeminiModel(requestBody, model, apiKey),
+    onAttempt: (model, attemptNumber, attemptLimit) => {
+      console.info(
+        `[Gemini] task=${task} model=${model} attempt=${attemptNumber}/${attemptLimit}`
+      );
+    },
+    onFallback: ({ fromModel, toModel, status, reason }) => {
+      console.warn(
+        `[Gemini] task=${task} fallback=${fromModel}->${toModel} status=${status} reason=${reason}`
+      );
+    },
+    onFailure: (model, failure) => {
+      console.error(
+        `[Gemini] task=${task} model=${model} failed status=${failure.status} reason=${failure.reason}`
+      );
+    },
+  });
+  return value;
 }
 
 export async function analyzeImageWithGemini(
   base64Image: string,
   mimeType: string,
-  promptText: string
+  promptText: string,
+  task = "image-analysis"
 ) {
   const requestBody = {
     contents: [
@@ -166,13 +151,12 @@ export async function analyzeImageWithGemini(
     generationConfig: {
       responseMimeType: "application/json",
       temperature: 0.2,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 2048,
     },
   };
 
-  const data = await postGeminiWithRetry(requestBody);
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return rawText;
+  const data = await postGeminiWithFallback(requestBody, task, GEMINI_IMAGE_MODELS);
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
 export async function generateTextWithGemini(promptText: string) {
@@ -180,6 +164,6 @@ export async function generateTextWithGemini(promptText: string) {
     contents: [{ parts: [{ text: promptText }] }],
   };
 
-  const data = await postGeminiWithRetry(requestBody);
+  const data = await postGeminiWithFallback(requestBody, "agronomist-chat", GEMINI_TEXT_MODELS);
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }

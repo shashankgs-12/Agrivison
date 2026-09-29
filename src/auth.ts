@@ -7,6 +7,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import authConfig from "@/auth.config";
 import { credentialsSchema } from "@/lib/auth/validation";
 import { findUserByPhone } from "@/lib/auth/phone-lookup";
+import { toSessionImage } from "@/lib/auth/profile-image";
 import { getFirebaseProjectId, getGoogleOAuthConfig } from "@/lib/auth/provider-config";
 import { prisma } from "@/lib/prisma";
 
@@ -103,7 +104,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     updateAge: 60 * 60,
   },
   providers: [
-    ...(googleConfig ? [Google(googleConfig)] : []),
+    // Google verifies the email it returns. Allow Auth.js to attach this
+    // provider to an existing password account with the same verified email.
+    ...(googleConfig
+      ? [Google({ ...googleConfig, allowDangerousEmailAccountLinking: true })]
+      : []),
     Credentials({
       name: "Email and password",
       credentials: {
@@ -197,6 +202,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const u = user as {
           id?: string;
           name?: string | null;
+          image?: string | null;
           role?: "FARMER" | "ADMIN";
           phone?: string | null;
           location?: string | null;
@@ -205,6 +211,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           profileComplete?: boolean;
         };
         token.id = u.id;
+        token.picture = toSessionImage(u.image);
         token.role = u.role || "FARMER";
         token.phone = u.phone || null;
         token.location = u.location || null;
@@ -229,7 +236,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (profile) {
           token.name = profile.name;
-          token.picture = profile.image;
+          token.picture = toSessionImage(profile.image);
           token.phone = profile.phone;
           token.location = profile.location;
           token.role = profile.role;

@@ -70,9 +70,7 @@ export function MobileDrawer() {
 
   const userName = user?.name || "Farmer";
   const userRole = user?.role ? user.role.replace("_", " ") : "Farmer";
-  const userAvatar =
-    user?.avatar ||
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userName)}`;
+  const userAvatar = user?.avatar;
 
   const handleLogout = async () => {
     closeMobileMenu();

@@ -9,7 +9,6 @@ import {
   EyeOff,
   ArrowRight,
   User,
-  Phone,
   Globe,
   Tractor,
   CheckCircle,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { getProviders, getSession, signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -179,13 +179,11 @@ export default function SignupPage() {
             <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
               Phone Number
             </label>
-            <Input
-              type="tel"
-              autoComplete="tel"
-              placeholder="+91 9876543210"
+            <PhoneNumberInput
+              id="signup-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              icon={<Phone className="h-4 w-4" />}
+              onChange={setPhone}
+              placeholder="Mobile number"
             />
           </div>
 

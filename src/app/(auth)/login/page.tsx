@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { getProviders, getSession, signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -35,6 +36,7 @@ export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const [smsConsent, setSmsConsent] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -62,6 +64,12 @@ export default function LoginPage() {
       recaptchaVerifierRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!phoneCodeSent || resendSeconds <= 0) return;
+    const timer = window.setTimeout(() => setResendSeconds((seconds) => seconds - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [phoneCodeSent, resendSeconds]);
 
   const syncUserFromSession = async (): Promise<{
     requiresProfileCompletion: boolean;
@@ -115,8 +123,11 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
+      // reCAPTCHA tokens are single-use/short-lived. Resend with a fresh
+      // verifier so an expired challenge cannot silently block a later SMS.
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
       const verifier =
-        recaptchaVerifierRef.current ??
         new RecaptchaVerifier(firebaseAuth, recaptchaContainerRef.current, {
           size: "normal",
         });
@@ -129,6 +140,7 @@ export default function LoginPage() {
       );
       setPhoneNumber(normalizedPhone);
       setPhoneCodeSent(true);
+      setResendSeconds(60);
       setVerificationCode("");
       setErrorMsg(null);
     } catch (cause) {
@@ -144,8 +156,17 @@ export default function LoginPage() {
         setErrorMsg("Phone sign-in is disabled for this Firebase project. Enable the Phone provider in Firebase Authentication.");
       } else if (code === "auth/too-many-requests" || code === "auth/quota-exceeded") {
         setErrorMsg("Firebase temporarily limited SMS requests. Wait a while or use a Firebase test phone number.");
+      } else if (code === "auth/network-request-failed") {
+        setErrorMsg("Network connection failed while requesting the code. Check your connection and try again.");
+      } else if (code === "auth/invalid-phone-number") {
+        setErrorMsg("Firebase rejected this number. Check the country code and mobile number, then try again.");
+      } else if (code === "auth/invalid-app-credential" || code === "auth/captcha-check-failed") {
+        setErrorMsg("Firebase could not verify reCAPTCHA. Check that localhost is authorized in Firebase, allow reCAPTCHA in your browser, and try again.");
+      } else if (code === "auth/invalid-api-key" || code === "auth/app-not-authorized") {
+        setErrorMsg("Firebase rejected this app configuration. Check the web app settings and authorized domains in Firebase Console.");
       } else {
-        setErrorMsg("Could not send the verification code. Check the phone number, reCAPTCHA, and Firebase SMS settings, then try again.");
+        const safeCode = /^auth\/[a-z0-9-]+$/.test(code) ? ` (${code})` : "";
+        setErrorMsg(`Could not send the verification code${safeCode}. Check the phone number, reCAPTCHA, and Firebase SMS settings, then try again.`);
       }
     } finally {
       setIsLoading(false);
@@ -182,9 +203,7 @@ export default function LoginPage() {
       }
 
       await firebaseSignOut(firebaseAuth).catch(() => undefined);
-      window.location.replace(
-        syncedSession.requiresProfileCompletion ? "/complete-profile" : "/dashboard"
-      );
+      window.location.replace("/dashboard");
     } catch (cause) {
       const code =
         cause && typeof cause === "object" && "code" in cause
@@ -194,8 +213,15 @@ export default function LoginPage() {
         setErrorMsg("That verification code is incorrect. Check the SMS and try again.");
       } else if (code === "auth/code-expired") {
         setErrorMsg("That verification code expired. Request a new code and try again.");
+      } else if (code === "auth/too-many-requests" || code === "auth/quota-exceeded") {
+        setErrorMsg("Firebase temporarily limited verification attempts. Wait a while before trying again.");
+      } else if (code === "auth/network-request-failed") {
+        setErrorMsg("Network connection failed while verifying the code. Check your connection and try again.");
+      } else if (code === "auth/captcha-check-failed") {
+        setErrorMsg("Firebase could not verify the reCAPTCHA check. Refresh the page and request a new code.");
       } else {
-        setErrorMsg(cause instanceof Error ? cause.message : "Phone sign-in failed. Please try again.");
+        const safeCode = /^auth\/[a-z0-9-]+$/.test(code) ? ` (${code})` : "";
+        setErrorMsg(`Phone sign-in failed${safeCode}. Please check the code and try again.`);
       }
       await firebaseSignOut(firebaseAuth).catch(() => undefined);
     } finally {
@@ -454,21 +480,28 @@ export default function LoginPage() {
 
         {loginMethod === "phone" && (
           <div className="space-y-4">
+            {errorMsg && (
+              <div
+                className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+                role="alert"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300">
                 Mobile number
               </label>
-              <Input
-                type="tel"
-                autoComplete="tel"
-                placeholder="+91 9876543210"
+              <PhoneNumberInput
+                id="login-phone"
                 value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
+                onChange={setPhoneNumber}
                 disabled={phoneCodeSent || isLoading}
-                icon={<Phone className="h-4 w-4" />}
+                placeholder="Mobile number"
               />
               <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                Include your country calling code.
+                Select your country, then enter your mobile number.
               </p>
             </div>
 
@@ -538,10 +571,10 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={handleSendPhoneCode}
-                    disabled={isLoading}
-                    className="font-semibold text-[#00ab41] hover:underline disabled:opacity-50"
+                    disabled={isLoading || resendSeconds > 0}
+                    className="font-semibold text-[#00ab41] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Resend code
+                    {resendSeconds > 0 ? `Resend in 0:${String(resendSeconds).padStart(2, "0")}` : "Resend code"}
                   </button>
                   <button
                     type="button"
@@ -550,6 +583,7 @@ export default function LoginPage() {
                       recaptchaVerifierRef.current?.clear();
                       recaptchaVerifierRef.current = null;
                       setPhoneCodeSent(false);
+                      setResendSeconds(0);
                       setVerificationCode("");
                       setErrorMsg(null);
                     }}

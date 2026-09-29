@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { profileSchema } from "@/lib/auth/validation";
 import { findUserByPhone } from "@/lib/auth/phone-lookup";
 import { prisma } from "@/lib/prisma";
+import { toSessionImage } from "@/lib/auth/profile-image";
 
 export async function PATCH(request: NextRequest) {
   const session = await auth();
@@ -50,7 +51,9 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ user });
+    return NextResponse.json({
+      user: { ...user, image: toSessionImage(user.image) },
+    });
   } catch (error) {
     console.error("Profile update failed", error);
     return NextResponse.json(
