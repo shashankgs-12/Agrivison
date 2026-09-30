@@ -35,9 +35,14 @@ function getSafeAuthDiagnostic(error: unknown) {
     "PrismaClientValidationError",
     "TypeError",
   ]);
+  const safeCheckMessages = new Set([
+    "pkceCodeVerifier cookie was missing",
+    "pkceCodeVerifier value could not be parsed",
+  ]);
   let type = "Unknown";
   let cause: string | undefined;
   let prismaCode: string | undefined;
+  let check: string | undefined;
   let current = error;
 
   for (let depth = 0; depth < 4 && current && typeof current === "object"; depth++) {
@@ -47,10 +52,13 @@ function getSafeAuthDiagnostic(error: unknown) {
     if (typeof record.code === "string" && /^P\d{4}$/.test(record.code)) {
       prismaCode = record.code;
     }
+    if (typeof record.message === "string" && safeCheckMessages.has(record.message)) {
+      check = record.message;
+    }
     current = record.cause ?? record.err;
   }
 
-  return { type, cause, prismaCode };
+  return { type, cause, prismaCode, check };
 }
 
 async function authorizeFirebasePhone(idToken: unknown) {
