@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/auth/phone-number";
+import type { User } from "@prisma/client";
 
 /** Match canonical phone input against existing rows, including legacy formatting. */
 export async function findUserByPhone(phone: string, excludeUserId?: string) {
@@ -15,6 +16,9 @@ export async function findUserByPhone(phone: string, excludeUserId?: string) {
   });
 
   return (
-    users.find((user) => normalizePhoneNumber(user.phone) === normalizedPhone) ?? null
+    users.find(
+      (user: Pick<User, "id" | "phone">) =>
+        normalizePhoneNumber(user.phone) === normalizedPhone
+    ) ?? null
   );
 }
