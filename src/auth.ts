@@ -15,6 +15,44 @@ const firebaseSigningKeys = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
 );
 
+function getSafeAuthDiagnostic(error: unknown) {
+  const authTypes = new Set([
+    "AdapterError",
+    "CallbackRouteError",
+    "InvalidCheck",
+    "JWTSessionError",
+    "MissingSecret",
+    "OAuthCallbackError",
+    "OAuthProfileParseError",
+    "UntrustedHost",
+  ]);
+  const causeNames = new Set([
+    "Error",
+    "PrismaClientInitializationError",
+    "PrismaClientKnownRequestError",
+    "PrismaClientRustPanicError",
+    "PrismaClientUnknownRequestError",
+    "PrismaClientValidationError",
+    "TypeError",
+  ]);
+  let type = "Unknown";
+  let cause: string | undefined;
+  let prismaCode: string | undefined;
+  let current = error;
+
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth++) {
+    const record = current as Record<string, unknown>;
+    if (typeof record.type === "string" && authTypes.has(record.type)) type = record.type;
+    if (typeof record.name === "string" && causeNames.has(record.name)) cause = record.name;
+    if (typeof record.code === "string" && /^P\d{4}$/.test(record.code)) {
+      prismaCode = record.code;
+    }
+    current = record.cause ?? record.err;
+  }
+
+  return { type, cause, prismaCode };
+}
+
 async function authorizeFirebasePhone(idToken: unknown) {
   const projectId = getFirebaseProjectId();
   if (typeof idToken !== "string" || !idToken || !projectId) return null;
@@ -97,6 +135,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   trustHost: true,
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    logger: {
+      error(error) {
+        console.error("[auth] request failed", JSON.stringify(getSafeAuthDiagnostic(error)));
+      },
+    },
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
