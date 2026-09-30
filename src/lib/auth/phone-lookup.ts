@@ -7,7 +7,7 @@ export async function findUserByPhone(phone: string, excludeUserId?: string) {
   const normalizedPhone = normalizePhoneNumber(phone);
   if (!normalizedPhone) return null;
 
-  const users = await prisma.user.findMany({
+  const users: Pick<User, "id" | "phone">[] = await prisma.user.findMany({
     where: {
       phone: { not: null },
       ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
