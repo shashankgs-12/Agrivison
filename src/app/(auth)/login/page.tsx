@@ -17,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { getProviders, getSession, signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
+import { startGoogleSignIn, useGoogleProviderStatus } from "@/hooks/use-google-auth";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -38,10 +39,13 @@ export default function LoginPage() {
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
   const [smsConsent, setSmsConsent] = useState(false);
-  const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
+  const googleProviderStatus = useGoogleProviderStatus();
   const [showPassword, setShowPassword] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isPhoneLoading, setIsPhoneLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const recaptchaContainerRef = useRef<HTMLDivElement | null>(null);
@@ -49,17 +53,7 @@ export default function LoginPage() {
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => {
-    let active = true;
-    getProviders()
-      .then((providers) => {
-        if (active) setGoogleAvailable(Boolean(providers?.google));
-      })
-      .catch(() => {
-        if (active) setGoogleAvailable(false);
-      });
-
     return () => {
-      active = false;
       recaptchaVerifierRef.current?.clear();
       recaptchaVerifierRef.current = null;
     };
@@ -121,7 +115,7 @@ export default function LoginPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsPhoneLoading(true);
     try {
       // reCAPTCHA tokens are single-use/short-lived. Resend with a fresh
       // verifier so an expired challenge cannot silently block a later SMS.
@@ -169,7 +163,7 @@ export default function LoginPage() {
         setErrorMsg(`Could not send the verification code${safeCode}. Check the phone number, reCAPTCHA, and Firebase SMS settings, then try again.`);
       }
     } finally {
-      setIsLoading(false);
+      setIsPhoneLoading(false);
     }
   };
 
@@ -186,7 +180,7 @@ export default function LoginPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsPhoneLoading(true);
     try {
       const firebaseUser = (await confirmationResultRef.current.confirm(verificationCode.trim())).user;
       const idToken = await firebaseUser.getIdToken(true);
@@ -225,17 +219,17 @@ export default function LoginPage() {
       }
       await firebaseSignOut(firebaseAuth).catch(() => undefined);
     } finally {
-      setIsLoading(false);
+      setIsPhoneLoading(false);
     }
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsEmailLoading(true);
     setErrorMsg(null);
 
     if (!email || !password) {
-      setIsLoading(false);
+      setIsEmailLoading(false);
       setErrorMsg("Please enter both email address and password.");
       return;
     }
@@ -251,19 +245,19 @@ export default function LoginPage() {
       });
 
       if (!res?.ok || res.error) {
-        setIsLoading(false);
+        setIsEmailLoading(false);
         setErrorMsg("Incorrect password or email. Please check your credentials or use Forgot Password to reset your password.");
         return;
       }
 
       const syncedSession = await syncUserFromSession();
       if (!syncedSession) {
-        setIsLoading(false);
+        setIsEmailLoading(false);
         setErrorMsg("Sign-in completed, but your session could not be loaded. Please try again.");
         return;
       }
 
-      setIsLoading(false);
+      setIsEmailLoading(false);
       setSuccessMessage(true);
 
       setTimeout(() => {
@@ -272,13 +266,13 @@ export default function LoginPage() {
         );
       }, 400);
     } catch {
-      setIsLoading(false);
+      setIsEmailLoading(false);
       setErrorMsg("An unexpected sign-in error occurred. Please check your password and try again.");
     }
   };
 
   const handleQuickDemoLogin = async () => {
-    setIsLoading(true);
+    setIsDemoLoading(true);
     setErrorMsg(null);
     const demoEmail = "farmer@agrivision.ai";
     const demoPass = "password123";
@@ -294,17 +288,17 @@ export default function LoginPage() {
       });
       const syncedSession = await syncUserFromSession();
       if (!result?.ok || result.error || !syncedSession) {
-        setIsLoading(false);
+        setIsDemoLoading(false);
         setErrorMsg("Demo sign-in is unavailable. Please sign in with a registered account.");
         return;
       }
     } catch {
-      setIsLoading(false);
+      setIsDemoLoading(false);
       setErrorMsg("Demo sign-in is unavailable. Please sign in with a registered account.");
       return;
     }
 
-    setIsLoading(false);
+    setIsDemoLoading(false);
     setSuccessMessage(true);
     setTimeout(() => {
       window.location.replace("/dashboard");
@@ -333,9 +327,11 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleQuickDemoLogin}
-              className="w-full min-h-[44px] py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              disabled={isDemoLoading}
+              aria-busy={isDemoLoading}
+              className="w-full min-h-[44px] touch-manipulation select-none py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 active:bg-emerald-200 dark:hover:bg-zinc-700 dark:active:bg-zinc-600 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-70 shadow-sm"
             >
-              Demo Farmer Sign In
+              {isDemoLoading ? "Signing in…" : "Demo Farmer Sign In"}
             </button>
           </div>
         </div>
@@ -349,9 +345,11 @@ export default function LoginPage() {
         )}
 
         {/* Method toggle */}
-        <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-xl p-1 mb-4 sm:mb-6">
+        <div role="tablist" aria-label="Sign-in method" className="flex bg-zinc-100 dark:bg-zinc-900 rounded-xl p-1 mb-4 sm:mb-6">
           <button
             type="button"
+            role="tab"
+            aria-selected={loginMethod === "email"}
             onClick={() => {
               setLoginMethod("email");
               setErrorMsg(null);
@@ -362,7 +360,7 @@ export default function LoginPage() {
               setPhoneCodeSent(false);
               setVerificationCode("");
             }}
-            className={`flex-1 min-h-[40px] flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+            className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
               loginMethod === "email"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
                 : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
@@ -373,12 +371,14 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={loginMethod === "phone"}
             onClick={() => {
               setLoginMethod("phone");
               setErrorMsg(null);
               setSuccessMessage(false);
             }}
-            className={`flex-1 min-h-[40px] flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+            className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
               loginMethod === "phone"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
                 : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
@@ -393,36 +393,42 @@ export default function LoginPage() {
         {loginMethod === "email" && (
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+              <label htmlFor="login-email" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
                 Email Address
               </label>
               <Input
                 type="email"
+                id="login-email"
                 required
                 placeholder="farmer@example.com"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 icon={<Mail className="h-4 w-4" />}
+                className="min-h-[44px] text-base touch-manipulation sm:text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+              <label htmlFor="login-password" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
                 Password
               </label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
+                  id="login-password"
                   required
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   icon={<Lock className="h-4 w-4" />}
-                  className="pr-10"
+                  className="min-h-[44px] pr-12 text-base touch-manipulation sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -445,7 +451,7 @@ export default function LoginPage() {
               </label>
               <Link
                 href="/forgot-password"
-                className="text-xs font-semibold text-[#00ab41] hover:underline"
+                className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-[#00ab41] hover:underline"
               >
                 Forgot Password?
               </Link>
@@ -471,8 +477,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full font-bold cursor-pointer" size="lg" disabled={isLoading}>
-              {isLoading ? "Signing In..." : "Sign In"}
+            <Button type="submit" className="min-h-12 w-full touch-manipulation font-bold cursor-pointer" size="lg" disabled={isEmailLoading} aria-busy={isEmailLoading}>
+              {isEmailLoading ? "Signing In..." : "Sign In"}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </form>
@@ -490,14 +496,14 @@ export default function LoginPage() {
               </div>
             )}
             <div>
-              <label className="mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              <label htmlFor="login-phone" className="mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300">
                 Mobile number
               </label>
               <PhoneNumberInput
                 id="login-phone"
                 value={phoneNumber}
                 onChange={setPhoneNumber}
-                disabled={phoneCodeSent || isLoading}
+                disabled={phoneCodeSent || isPhoneLoading}
                 placeholder="Mobile number"
               />
               <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -529,11 +535,12 @@ export default function LoginPage() {
               <Button
                 type="button"
                 onClick={handleSendPhoneCode}
-                disabled={isLoading}
-                className="w-full font-bold"
+                disabled={isPhoneLoading}
+                aria-busy={isPhoneLoading}
+                className="min-h-12 w-full touch-manipulation font-bold"
                 size="lg"
               >
-                {isLoading ? "Sending code…" : "Send verification code"}
+                {isPhoneLoading ? "Sending code…" : "Send verification code"}
               </Button>
             ) : (
               <form onSubmit={handleVerifyPhoneCode} className="space-y-3">
@@ -544,10 +551,11 @@ export default function LoginPage() {
                   Verification code sent to {phoneNumber}. Enter the 6-digit code below and select Verify to sign in.
                 </p>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                  <label htmlFor="login-verification-code" className="mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300">
                     6-digit verification code
                   </label>
                   <Input
+                    id="login-verification-code"
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     pattern="[0-9]{6}"
@@ -559,20 +567,21 @@ export default function LoginPage() {
                       setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     icon={<Lock className="h-4 w-4" />}
+                    className="min-h-[44px] text-base tracking-[0.25em] touch-manipulation sm:text-sm"
                   />
                   <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
                     Code sent to {phoneNumber}.
                   </p>
                 </div>
-                <Button type="submit" disabled={isLoading} className="w-full font-bold" size="lg">
-                  {isLoading ? "Verifying…" : "Verify code and sign in"}
+                <Button type="submit" disabled={isPhoneLoading} aria-busy={isPhoneLoading} className="min-h-12 w-full touch-manipulation font-bold" size="lg">
+                  {isPhoneLoading ? "Verifying…" : "Verify code and sign in"}
                 </Button>
                 <div className="flex items-center justify-between text-xs">
                   <button
                     type="button"
                     onClick={handleSendPhoneCode}
-                    disabled={isLoading || resendSeconds > 0}
-                    className="font-semibold text-[#00ab41] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isPhoneLoading || resendSeconds > 0}
+                    className="inline-flex min-h-11 touch-manipulation items-center font-semibold text-[#00ab41] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {resendSeconds > 0 ? `Resend in 0:${String(resendSeconds).padStart(2, "0")}` : "Resend code"}
                   </button>
@@ -587,8 +596,8 @@ export default function LoginPage() {
                       setVerificationCode("");
                       setErrorMsg(null);
                     }}
-                    disabled={isLoading}
-                    className="font-semibold text-zinc-500 hover:underline disabled:opacity-50"
+                    disabled={isPhoneLoading}
+                    className="inline-flex min-h-11 touch-manipulation items-center font-semibold text-zinc-500 hover:underline disabled:opacity-50"
                   >
                     Change number
                   </button>
@@ -609,35 +618,40 @@ export default function LoginPage() {
         <Button
           type="button"
           variant="outline"
-          className="w-full font-bold cursor-pointer min-h-[44px]"
+          className="w-full font-bold cursor-pointer min-h-12 touch-manipulation"
           size="lg"
-          disabled={googleAvailable !== true || isLoading}
+          disabled={isGoogleLoading}
+          aria-busy={isGoogleLoading}
           onClick={async () => {
-            if (googleAvailable !== true) {
+            if (googleProviderStatus === "unavailable") {
               setErrorMsg("Google sign-in is not configured. Add a valid Google OAuth Web client ID and secret, then restart the app.");
               return;
             }
-            setIsLoading(true);
+            setIsGoogleLoading(true);
             setErrorMsg(null);
-            try {
-              await signIn("google", { redirectTo: "/dashboard" });
-            } catch (gErr) {
-              console.warn("Google OAuth trigger notice:", gErr);
-              setIsLoading(false);
-              setErrorMsg("Google sign-in could not be started. Check the Google OAuth Web client configuration.");
+            const result = await startGoogleSignIn();
+            if (!result.ok) {
+              setIsGoogleLoading(false);
+              setErrorMsg(
+                result.reason === "timeout"
+                  ? "Google sign-in took too long to start. Check your connection, or continue with Email / Phone OTP."
+                  : "Google sign-in could not be started. Check the Google OAuth Web client configuration."
+              );
+              return;
             }
+            window.location.assign(result.url);
           }}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />
-          {googleAvailable === null
-            ? "Checking Google sign-in…"
-            : googleAvailable
-              ? "Continue with Google"
-              : "Google sign-in not configured"}
+          {isGoogleLoading ? "Connecting to Google…" : "Continue with Google"}
         </Button>
-        {googleAvailable === false && (
-          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300">
-            Configure a real Google OAuth Web client in <code>.env.local</code> to enable this option.
+        {googleProviderStatus !== "available" && (
+          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300" role="status" aria-live="polite">
+            {googleProviderStatus === "checking"
+              ? "Checking Google sign-in availability. Email and Phone OTP are ready to use."
+              : googleProviderStatus === "timed-out"
+                ? "Google sign-in availability check timed out. You can still try Google or use Email / Phone OTP."
+                : "Google sign-in is not configured. Configure a Google OAuth Web client in .env.local; Email and Phone OTP remain available."}
           </p>
         )}
 
@@ -646,7 +660,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{" "}
           <Link
             href="/signup"
-            className="font-bold text-[#00ab41] hover:underline"
+            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-[#00ab41] hover:underline"
           >
             Create Account
           </Link>
