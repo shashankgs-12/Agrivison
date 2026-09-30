@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Mail,
@@ -17,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { getProviders, getSession, signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
+import { startGoogleSignIn, useGoogleProviderStatus } from "@/hooks/use-google-auth";
 
 export default function SignupPage() {
   const setUser = useAuthStore((state) => state.setUser);
@@ -30,21 +31,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    getProviders()
-      .then((providers) => {
-        if (active) setGoogleAvailable(Boolean(providers?.google));
-      })
-      .catch(() => {
-        if (active) setGoogleAvailable(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const googleProviderStatus = useGoogleProviderStatus();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +100,28 @@ export default function SignupPage() {
     }
   };
 
+  const handleGoogleSignUp = async () => {
+    if (googleProviderStatus === "unavailable") {
+      setErrorMsg("Google sign-in is not configured. Add a valid Google OAuth Web client ID and secret, then restart the app.");
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    const result = await startGoogleSignIn();
+    if (!result.ok) {
+      setIsLoading(false);
+      setErrorMsg(
+        result.reason === "timeout"
+          ? "Google sign-in took too long to start. Check your connection, or create an account with email."
+          : "Google sign-up could not be started. Check the Google OAuth Web client configuration."
+      );
+      return;
+    }
+
+    window.location.assign(result.url);
+  };
+
   return (
     <div className="w-full max-w-md animate-fade-in">
       <div className="bg-white dark:bg-black rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
@@ -148,11 +157,12 @@ export default function SignupPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+            <label htmlFor="signup-full-name" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
               Full Name
             </label>
             <Input
               type="text"
+              id="signup-full-name"
               required
               placeholder="Enter full name"
               value={fullName}
@@ -162,11 +172,12 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+            <label htmlFor="signup-email" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
               Email Address
             </label>
             <Input
               type="email"
+              id="signup-email"
               required
               placeholder="farmer@example.com"
               value={email}
@@ -176,7 +187,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+            <label htmlFor="signup-phone" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
               Phone Number
             </label>
             <PhoneNumberInput
@@ -188,11 +199,12 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
+            <label htmlFor="signup-password" className="text-xs font-bold text-zinc-700 mb-1.5 block dark:text-zinc-300">
               Password
             </label>
             <div className="relative">
               <Input
+                id="signup-password"
                 type={showPassword ? "text" : "password"}
                 required
                 placeholder="Enter password"
@@ -204,7 +216,8 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -239,32 +252,24 @@ export default function SignupPage() {
           variant="outline"
           className="w-full font-bold cursor-pointer min-h-[44px]"
           size="lg"
-          disabled={googleAvailable !== true || isLoading}
-          onClick={async () => {
-            if (googleAvailable !== true) {
-              setErrorMsg("Google sign-in is not configured. Add a valid Google OAuth Web client ID and secret, then restart the app.");
-              return;
-            }
-            setIsLoading(true);
-            setErrorMsg(null);
-            try {
-              await signIn("google", { redirectTo: "/dashboard" });
-            } catch {
-              setIsLoading(false);
-              setErrorMsg("Google sign-up could not be started. Check the Google OAuth Web client configuration.");
-            }
-          }}
+          disabled={isLoading}
+          aria-busy={isLoading}
+          onClick={handleGoogleSignUp}
         >
           <Globe className="h-5 w-5 text-[#00ab41]" />
-          {googleAvailable === null
-            ? "Checking Google sign-in…"
-            : googleAvailable
-              ? "Sign up with Google"
-              : "Google sign-in not configured"}
+          {isLoading
+            ? "Connecting to Google…"
+            : googleProviderStatus === "unavailable"
+              ? "Google sign-in not configured"
+              : "Sign up with Google"}
         </Button>
-        {googleAvailable === false && (
-          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300">
-            Configure a real Google OAuth Web client in <code>.env.local</code> to enable this option.
+        {googleProviderStatus !== "available" && (
+          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300" role="status" aria-live="polite">
+            {googleProviderStatus === "checking"
+              ? "Checking Google sign-in availability. Email registration is ready to use."
+              : googleProviderStatus === "timed-out"
+                ? "Google sign-in availability check timed out. You can still try Google or create an account with email."
+                : <>Configure a Google OAuth Web client in <code>.env.local</code> to enable this option.</>}
           </p>
         )}
 
@@ -273,7 +278,7 @@ export default function SignupPage() {
           Already have an account?{" "}
           <Link
             href="/login"
-            className="font-bold text-[#00ab41] hover:underline"
+            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-[#00ab41] hover:underline"
           >
             Sign In
           </Link>

@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldAlert,
-  Droplets,
   History,
   Languages,
   AlertCircle,
@@ -28,6 +27,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import { CameraModal } from "@/components/shared/camera-modal";
 import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
+import { useCrops } from "@/hooks/use-crops";
 
 const SCANNING_STAGES = [
   "Preparing the leaf image...",
@@ -66,6 +66,12 @@ export default function DiseaseDetectionPage() {
   const { preferences, setPreference } = useLanguageStore();
   const { addDiseaseRecord } = useHistoryStore();
   const { user } = useAuthStore();
+  const { crops } = useCrops();
+  const [linkedCropId, setLinkedCropId] = useState("");
+
+  const selectedLinkedCropId = crops.some((crop) => crop.id === linkedCropId)
+    ? linkedCropId
+    : crops.length === 1 ? crops[0].id : "";
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -186,6 +192,7 @@ export default function DiseaseDetectionPage() {
         : data.result.treatment?.chemical || "";
 
       try {
+        const linkedCrop = crops.find((crop) => crop.id === selectedLinkedCropId);
         addDiseaseRecord({
           userId: user?.uid,
           // The history store keeps durable URLs only and drops this transient
@@ -202,6 +209,8 @@ export default function DiseaseDetectionPage() {
           symptoms: symptomsStr,
           organicTreatment: organicStr,
           chemicalTreatment: chemicalStr,
+          cropId: linkedCrop?.id,
+          cropName: linkedCrop?.name,
         });
       } catch (historyError) {
         // A history persistence problem must not hide a successful diagnosis.
@@ -250,6 +259,23 @@ export default function DiseaseDetectionPage() {
           </Button>
         </Link>
       </div>
+
+      {crops.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <label htmlFor="disease-linked-crop" className="block text-xs font-bold text-slate-800 dark:text-slate-200">Link this scan to a crop (optional)</label>
+          <select
+            id="disease-linked-crop"
+            value={selectedLinkedCropId}
+            onChange={(event) => setLinkedCropId(event.target.value)}
+            disabled={analyzing}
+            className="mt-2 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white sm:max-w-md"
+          >
+            <option value="">Do not link to a crop</option>
+            {crops.map((crop) => <option key={crop.id} value={crop.id}>{crop.name}{crop.variety ? ` · ${crop.variety}` : ""} — {crop.farmName}</option>)}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Linked diagnoses can inform that crop&apos;s AI Fertilizer Advisor. The scanner will not assume a disease when none is linked.</p>
+        </div>
+      )}
 
       {/* Language Switcher */}
       <div className="bg-rose-50/80 border border-rose-200 rounded-xl p-3 flex items-center justify-between dark:bg-rose-950/30 dark:border-rose-900">

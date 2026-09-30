@@ -27,6 +27,19 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useWeatherStore } from "@/stores/weather-store";
 import { useFarmStore, Farm } from "@/stores/farm-store";
 import { Crop } from "@/stores/crop-store";
+import { CropLifecycleFields, type CropLifecycleFormValues } from "@/components/crops/crop-lifecycle-fields";
+import { getCropDateAfterDays, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
+
+type QuickCropFormData = {
+  name: string;
+  variety: string;
+  sowingDate: string;
+  growthStage: Crop["growthStage"];
+  area: number;
+  waterNeed: Crop["waterNeed"];
+  health: Crop["health"];
+  diseaseStatus: string;
+} & CropLifecycleFormValues;
 
 const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
   ssr: false,
@@ -51,12 +64,19 @@ export default function FarmsPage() {
   // Quick Add Plant Modal State
   const [plantModalFarm, setPlantModalFarm] = useState<Farm | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [plantFormError, setPlantFormError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState(() => ({
+  const [formData, setFormData] = useState<QuickCropFormData>(() => ({
     name: "",
     variety: "",
-    sowingDate: new Date().toISOString().split("T")[0],
-    expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    sowingDate: getCropDateAfterDays(0),
+    lifecycleType: "ANNUAL",
+    expectedHarvest: getCropDateAfterDays(120),
+    establishmentPeriodMonths: 12,
+    maturityPeriodMonths: 36,
+    firstExpectedHarvest: "",
+    harvestIntervalMonths: 12,
+    maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
     growthStage: "Seedling" as Crop["growthStage"],
     area: 2,
     waterNeed: "Medium" as Crop["waterNeed"],
@@ -100,12 +120,38 @@ export default function FarmsPage() {
   const handleOpenAddPlant = (e: React.MouseEvent, farm: Farm) => {
     e.stopPropagation();
     setPlantModalFarm(farm);
+    setPlantFormError(null);
     setFormData((prev) => ({ ...prev, area: Math.min(farm.area, 5) }));
+  };
+
+  const updateLifecycle = (patch: Partial<CropLifecycleFormValues>) => {
+    setFormData((current) => ({ ...current, ...patch }));
   };
 
   const handleCreatePlant = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plantModalFarm || !formData.name.trim()) return;
+    if (!plantModalFarm || !formData.name.trim()) {
+      setPlantFormError("Enter a crop name before saving.");
+      return;
+    }
+
+    if (formData.lifecycleType === "ANNUAL" && (!formData.expectedHarvest || Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate))) {
+      setPlantFormError("Expected harvest date must be on or after the sowing date.");
+      return;
+    }
+    if (formData.lifecycleType === "PERENNIAL" && formData.maturityPeriodMonths <= formData.establishmentPeriodMonths) {
+      setPlantFormError("Maturity period must be longer than the establishment period.");
+      return;
+    }
+    if (formData.firstExpectedHarvest && Date.parse(formData.firstExpectedHarvest) < Date.parse(formData.sowingDate)) {
+      setPlantFormError("First expected harvest must be on or after the planting date.");
+      return;
+    }
+    if (formData.firstExpectedHarvest && Date.parse(formData.firstExpectedHarvest) < Date.parse(formData.sowingDate)) {
+      setPlantFormError("First expected harvest must be on or after the planting date.");
+      return;
+    }
+    setPlantFormError(null);
 
     addCrop({
       ownerId: user?.uid,
@@ -114,7 +160,13 @@ export default function FarmsPage() {
       name: formData.name.trim(),
       variety: formData.variety.trim(),
       sowingDate: formData.sowingDate,
-      expectedHarvest: formData.expectedHarvest,
+      expectedHarvest: formData.lifecycleType === "ANNUAL" ? formData.expectedHarvest : undefined,
+      lifecycleType: formData.lifecycleType,
+      establishmentPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.establishmentPeriodMonths : undefined,
+      maturityPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.maturityPeriodMonths : undefined,
+      firstExpectedHarvest: formData.lifecycleType === "PERENNIAL" ? formData.firstExpectedHarvest || undefined : undefined,
+      harvestIntervalMonths: formData.lifecycleType === "PERENNIAL" ? formData.harvestIntervalMonths : undefined,
+      maintenanceSchedule: formData.maintenanceSchedule,
       growthStage: formData.growthStage,
       area: Number(formData.area),
       waterNeed: formData.waterNeed,
@@ -130,8 +182,14 @@ export default function FarmsPage() {
     setFormData({
       name: "",
       variety: "",
-      sowingDate: new Date().toISOString().split("T")[0],
-      expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      sowingDate: getCropDateAfterDays(0),
+      lifecycleType: "ANNUAL",
+      expectedHarvest: getCropDateAfterDays(120),
+      establishmentPeriodMonths: 12,
+      maturityPeriodMonths: 36,
+      firstExpectedHarvest: "",
+      harvestIntervalMonths: 12,
+      maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
       growthStage: "Seedling",
       area: 2,
       waterNeed: "Medium",
@@ -354,7 +412,7 @@ export default function FarmsPage() {
       {/* Add Plant to Specific Farm Modal */}
       {plantModalFarm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="bg-white rounded-3xl border border-slate-200 max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-2xl space-y-5 dark:bg-slate-900 dark:border-slate-800">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -404,8 +462,7 @@ export default function FarmsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+              <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Sowing Date</label>
                   <input
                     type="date"
@@ -414,18 +471,9 @@ export default function FarmsPage() {
                     onChange={(e) => setFormData({ ...formData, sowingDate: e.target.value })}
                     className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   />
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 mb-1">Expected Harvest</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.expectedHarvest}
-                    onChange={(e) => setFormData({ ...formData, expectedHarvest: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                  />
-                </div>
               </div>
+
+              <CropLifecycleFields value={formData} onChange={updateLifecycle} />
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
@@ -469,6 +517,8 @@ export default function FarmsPage() {
                   </select>
                 </div>
               </div>
+
+              {plantFormError && <p role="alert" className="text-xs font-semibold text-rose-600">{plantFormError}</p>}
 
               <div className="pt-3 flex gap-3">
                 <Button

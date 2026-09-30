@@ -491,12 +491,22 @@ export default function AddFarmPage() {
                     polygonPoints={selectedMode === "manual" ? manualPolygonPoints : []}
                     userLocation={userLocation}
                     onMapClick={selectedMode === "manual" ? handleManualMapClick : undefined}
+                    onLocationSelect={async ({ lat, lng, label, accuracy }) => {
+                      const address = label === "Current location" ? await reverseGeocodeAddress(lat, lng) : label;
+                      setCoordinates({ lat, lng });
+                      if (accuracy !== undefined) {
+                        setUserLocation({ lat, lng, accuracy });
+                        setGpsAccuracy(accuracy);
+                      }
+                      setLocationAddress(address);
+                      updateLocation(lat, lng, address);
+                    }}
                     height="h-[440px]"
                   />
 
                   {/* Option 1: Live GPS Walk Control Bar */}
                   {selectedMode === "live-gps" && (
-                    <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white p-3.5 rounded-2xl shadow-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="relative mt-3 sm:absolute sm:bottom-4 sm:left-4 sm:right-48 sm:mt-0 z-[1000] bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white p-3.5 rounded-2xl shadow-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-emerald-400">
@@ -579,7 +589,7 @@ export default function AddFarmPage() {
 
                   {/* Option 2: Manual Drawing Activation Toolbar */}
                   {selectedMode === "manual" && (
-                    <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-between">
+                    <div className="relative mt-3 sm:absolute sm:bottom-4 sm:left-4 sm:right-48 sm:mt-0 z-[1000] bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-between">
                       <div>
                         {!isManualDrawingActive ? (
                           <p className="text-xs font-bold text-amber-400">

@@ -4,10 +4,12 @@ import React from "react";
 import { AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useDiseaseRecords } from "@/hooks/use-history";
-import { useAuthStore } from "@/stores/auth-store";
+import { useLanguage } from "@/hooks/use-language";
+import { getDashboardText } from "@/lib/i18n/localization";
 
 export function AlertsPanel() {
-  const { user } = useAuthStore();
+  const { language } = useLanguage();
+  const copy = getDashboardText(language);
   const { diseaseRecords } = useDiseaseRecords();
 
   // Filter alerts for medium/high/critical severity
@@ -21,7 +23,7 @@ export function AlertsPanel() {
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-rose-600" />
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Active Crop Disease Alerts
+            {copy.alerts}
           </h3>
         </div>
         <span
@@ -32,7 +34,7 @@ export function AlertsPanel() {
               : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
           )}
         >
-          {activeAlerts.length} Active
+          {copy.active.replace("{count}", String(activeAlerts.length))}
         </span>
       </div>
 
@@ -41,10 +43,10 @@ export function AlertsPanel() {
           <div className="text-center py-6 space-y-2">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              No Active Disease Alerts
+              {copy.noAlerts}
             </p>
             <p className="text-[11px] text-slate-400">
-              Your registered crops are healthy and free of critical disease diagnoses.
+              {copy.healthyCrops}
             </p>
           </div>
         ) : (

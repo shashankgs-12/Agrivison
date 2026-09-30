@@ -9,7 +9,13 @@ export interface Crop {
   name: string;
   variety?: string;
   sowingDate: string;
-  expectedHarvest: string;
+  expectedHarvest?: string;
+  lifecycleType?: "ANNUAL" | "PERENNIAL";
+  establishmentPeriodMonths?: number;
+  maturityPeriodMonths?: number;
+  firstExpectedHarvest?: string;
+  harvestIntervalMonths?: number;
+  maintenanceSchedule?: CropMaintenanceSchedule;
   growthStage: "Seedling" | "Vegetative" | "Flowering" | "Fruiting" | "Maturation" | "Harvesting";
   area: number; // in acres
   waterNeed: "Low" | "Medium" | "High" | "Critical";
@@ -17,6 +23,14 @@ export interface Crop {
   diseaseStatus: string; // e.g. "Healthy" or "Yellow Rust Alert"
   soilType?: string;
   createdAt: string;
+}
+
+export interface CropMaintenanceSchedule {
+  irrigationCheckDays: number;
+  fertilizerReviewDays: number;
+  diseaseMonitoringDays: number;
+  pruningDays: number;
+  soilCareDays: number;
 }
 
 interface CropState {

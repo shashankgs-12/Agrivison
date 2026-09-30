@@ -3,7 +3,7 @@
 import React, { use, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, MapPin, Sprout, Droplets, Trash2, Plus, X, Calendar, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Sprout, Trash2, Plus, X, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFarms } from "@/hooks/use-farms";
@@ -12,6 +12,19 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useFarmStore } from "@/stores/farm-store";
 import { Crop } from "@/stores/crop-store";
 import { useRouter } from "next/navigation";
+import { CropLifecycleFields, type CropLifecycleFormValues } from "@/components/crops/crop-lifecycle-fields";
+import { getCropCareReminders, getCropDateAfterDays, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
+
+type FarmCropFormData = {
+  name: string;
+  variety: string;
+  sowingDate: string;
+  growthStage: Crop["growthStage"];
+  area: number;
+  waterNeed: Crop["waterNeed"];
+  health: Crop["health"];
+  diseaseStatus: string;
+} & CropLifecycleFormValues;
 
 const InteractiveFarmMap = dynamic(() => import("@/components/maps/leaflet-map"), {
   ssr: false,
@@ -34,13 +47,20 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
 
   const [isAddPlantModalOpen, setIsAddPlantModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form State for Adding Plant to Farm
-  const [formData, setFormData] = useState(() => ({
+  const [formData, setFormData] = useState<FarmCropFormData>(() => ({
     name: "",
     variety: "",
-    sowingDate: new Date().toISOString().split("T")[0],
-    expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    sowingDate: getCropDateAfterDays(0),
+    lifecycleType: "ANNUAL",
+    expectedHarvest: getCropDateAfterDays(120),
+    establishmentPeriodMonths: 12,
+    maturityPeriodMonths: 36,
+    firstExpectedHarvest: "",
+    harvestIntervalMonths: 12,
+    maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
     growthStage: "Seedling" as Crop["growthStage"],
     area: farm ? Math.min(farm.area, 5) : 2,
     waterNeed: "Medium" as Crop["waterNeed"],
@@ -71,6 +91,20 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    if (formData.lifecycleType === "ANNUAL" && (!formData.expectedHarvest || Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate))) {
+      setFormError("Expected harvest date must be on or after the sowing date.");
+      return;
+    }
+    if (formData.lifecycleType === "PERENNIAL" && formData.maturityPeriodMonths <= formData.establishmentPeriodMonths) {
+      setFormError("Maturity period must be longer than the establishment period.");
+      return;
+    }
+    if (formData.firstExpectedHarvest && Date.parse(formData.firstExpectedHarvest) < Date.parse(formData.sowingDate)) {
+      setFormError("First expected harvest must be on or after the planting date.");
+      return;
+    }
+    setFormError(null);
+
     addCrop({
       ownerId: user?.uid,
       farmId: farm.id,
@@ -78,7 +112,13 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
       name: formData.name.trim(),
       variety: formData.variety.trim(),
       sowingDate: formData.sowingDate,
-      expectedHarvest: formData.expectedHarvest,
+      expectedHarvest: formData.lifecycleType === "ANNUAL" ? formData.expectedHarvest : undefined,
+      lifecycleType: formData.lifecycleType,
+      establishmentPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.establishmentPeriodMonths : undefined,
+      maturityPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.maturityPeriodMonths : undefined,
+      firstExpectedHarvest: formData.lifecycleType === "PERENNIAL" ? formData.firstExpectedHarvest || undefined : undefined,
+      harvestIntervalMonths: formData.lifecycleType === "PERENNIAL" ? formData.harvestIntervalMonths : undefined,
+      maintenanceSchedule: formData.maintenanceSchedule,
       growthStage: formData.growthStage,
       area: Number(formData.area),
       waterNeed: formData.waterNeed,
@@ -96,8 +136,14 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     setFormData({
       name: "",
       variety: "",
-      sowingDate: new Date().toISOString().split("T")[0],
-      expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      sowingDate: getCropDateAfterDays(0),
+      lifecycleType: "ANNUAL",
+      expectedHarvest: getCropDateAfterDays(120),
+      establishmentPeriodMonths: 12,
+      maturityPeriodMonths: 36,
+      firstExpectedHarvest: "",
+      harvestIntervalMonths: 12,
+      maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
       growthStage: "Seedling",
       area: Math.min(farm.area, 5),
       waterNeed: "Medium",
@@ -106,22 +152,8 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     });
   };
 
-  const calculateProgress = (sowingDateStr: string, harvestDateStr: string): number => {
-    try {
-      const sowing = new Date(sowingDateStr).getTime();
-      const harvest = new Date(harvestDateStr).getTime();
-      const now = new Date().getTime();
-
-      if (now <= sowing) return 0;
-      if (now >= harvest) return 100;
-
-      const totalDuration = harvest - sowing;
-      const elapsed = now - sowing;
-
-      return Math.min(100, Math.max(1, Math.round((elapsed / totalDuration) * 100)));
-    } catch {
-      return 45;
-    }
+  const updateLifecycle = (patch: Partial<CropLifecycleFormValues>) => {
+    setFormData((current) => ({ ...current, ...patch }));
   };
 
   return (
@@ -246,7 +278,8 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {farmCrops.map((crop) => {
-              const progress = calculateProgress(crop.sowingDate, crop.expectedHarvest);
+              const lifecycle = getCropLifecycleInfo(crop);
+              const nextReminder = getCropCareReminders(crop)[0];
 
               return (
                 <div
@@ -259,7 +292,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                         🌾 {crop.name} {crop.variety ? `(${crop.variety})` : ""}
                       </h4>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Planted: {crop.sowingDate} • Harvest: {crop.expectedHarvest}
+                        Planted: {crop.sowingDate} • {lifecycle.lifecycleType === "PERENNIAL" ? `First harvest: ${crop.firstExpectedHarvest || "not set"} · recurring` : `Harvest: ${crop.expectedHarvest || "not set"}`}
                       </p>
                     </div>
                     <Badge className="bg-emerald-600 text-white font-bold text-[10px]">
@@ -270,16 +303,18 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                   {/* Growth Progress Bar */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-500 dark:text-slate-400">Growth Stage: {crop.growthStage}</span>
-                      <span className="text-emerald-600 font-bold">{progress}%</span>
+                      <span className="text-slate-500 dark:text-slate-400">Life stage: {lifecycle.stage} · Age {lifecycle.ageLabel}</span>
+                      <span className="text-emerald-600 font-bold">{lifecycle.progress}%</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden dark:bg-slate-700">
                       <div
                         className="bg-emerald-500 h-2 rounded-full transition-all"
-                        style={{ width: `${progress}%` }}
+                        style={{ width: `${lifecycle.progress}%` }}
                       />
                     </div>
                   </div>
+
+                  {nextReminder && <p className="text-[11px] text-sky-700 dark:text-sky-300">Next: {nextReminder.activity} · {nextReminder.nextDue}</p>}
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                     <div className="p-2 bg-white rounded-lg dark:bg-slate-900/60">
@@ -317,7 +352,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
       {/* Add Plant Modal */}
       {isAddPlantModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="bg-white rounded-3xl border border-slate-200 max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-2xl space-y-5 dark:bg-slate-900 dark:border-slate-800">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -367,8 +402,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Sowing Date</label>
                   <input
                     type="date"
@@ -377,18 +411,9 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                     onChange={(e) => setFormData({ ...formData, sowingDate: e.target.value })}
                     className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   />
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 mb-1">Expected Harvest</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.expectedHarvest}
-                    onChange={(e) => setFormData({ ...formData, expectedHarvest: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                  />
-                </div>
               </div>
+
+              <CropLifecycleFields value={formData} onChange={updateLifecycle} />
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -432,6 +457,8 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                   </select>
                 </div>
               </div>
+
+              {formError && <p role="alert" className="text-xs font-semibold text-rose-600">{formError}</p>}
 
               <div className="pt-3 flex gap-3">
                 <Button

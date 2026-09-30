@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { Activity, Clock, Plus } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useFarms } from "@/hooks/use-farms";
 import { useCrops } from "@/hooks/use-crops";
 import { useDiseaseRecords, usePlantRecords } from "@/hooks/use-history";
-import { useAuthStore } from "@/stores/auth-store";
+import { useLanguage } from "@/hooks/use-language";
+import { getDashboardText } from "@/lib/i18n/localization";
 
 export function RecentActivity() {
-  const { user } = useAuthStore();
+  const { language } = useLanguage();
+  const copy = getDashboardText(language);
   const { farms } = useFarms();
   const { crops } = useCrops();
   const { diseaseRecords } = useDiseaseRecords();
@@ -76,7 +78,7 @@ export function RecentActivity() {
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-emerald-600" />
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Recent Farm Activity
+            {copy.activity}
           </h3>
         </div>
       </div>
@@ -86,14 +88,14 @@ export function RecentActivity() {
           <div className="text-center py-6 space-y-3">
             <Clock className="h-8 w-8 text-slate-400 mx-auto" />
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              No recent activity records
+              {copy.noActivity}
             </p>
             <p className="text-[11px] text-slate-400">
-              Add your first farm or perform an AI crop scan to populate your timeline.
+              {copy.addFirstFarm}
             </p>
             <Link href="/farms/add">
               <span className="inline-flex items-center text-xs font-bold text-emerald-600 hover:underline">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Farm
+                <Plus className="h-3.5 w-3.5 mr-1" /> {copy.addFarm}
               </span>
             </Link>
           </div>

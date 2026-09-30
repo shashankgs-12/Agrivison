@@ -5,6 +5,18 @@ export interface Crop {
   scientificName?: string;
   variety?: string;
   sowingDate: string;
-  expectedHarvest: string;
+  expectedHarvest?: string;
+  lifecycleType?: "ANNUAL" | "PERENNIAL";
+  establishmentPeriodMonths?: number;
+  maturityPeriodMonths?: number;
+  firstExpectedHarvest?: string;
+  harvestIntervalMonths?: number;
+  maintenanceSchedule?: {
+    irrigationCheckDays: number;
+    fertilizerReviewDays: number;
+    diseaseMonitoringDays: number;
+    pruningDays: number;
+    soilCareDays: number;
+  };
   growthStage: "germination" | "seedling" | "vegetative" | "flowering" | "fruiting" | "harvest";
 }

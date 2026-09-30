@@ -11,6 +11,7 @@ import {
   Sparkles,
   CloudSun,
   Droplets,
+  FlaskConical,
   FileBarChart,
   Settings,
   ChevronLeft,
@@ -19,6 +20,21 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useUIStore } from "@/stores/ui-store";
+import { useLanguage } from "@/hooks/use-language";
+import { getUiText, type NavigationKey } from "@/lib/i18n/localization";
+
+const NAV_KEY_BY_HREF: Record<string, NavigationKey> = {
+  "/dashboard": "dashboard",
+  "/farms": "farms",
+  "/crops": "crops",
+  "/disease-detection": "disease",
+  "/plant-identification": "plant",
+  "/weather": "weather",
+  "/irrigation": "irrigation",
+  "/fertilizer": "fertilizer",
+  "/reports": "reports",
+  "/settings": "settings",
+};
 
 export const NAV_ITEMS = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -28,6 +44,7 @@ export const NAV_ITEMS = [
   { name: "Plant ID", href: "/plant-identification", icon: Sparkles },
   { name: "Weather", href: "/weather", icon: CloudSun },
   { name: "Irrigation Advisor", href: "/irrigation", icon: Droplets },
+  { name: "Fertilizer Advisor", href: "/fertilizer", icon: FlaskConical },
   { name: "Reports", href: "/reports", icon: FileBarChart },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -35,11 +52,13 @@ export const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { language } = useLanguage();
+  const copy = getUiText(language);
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-white border-r border-zinc-200 transition-all duration-300 ease-in-out flex flex-col justify-between dark:bg-black dark:border-zinc-800 hidden md:flex",
+        "fixed left-0 top-0 z-40 h-dvh bg-white border-r border-zinc-200 transition-all duration-300 ease-in-out flex flex-col justify-between dark:bg-black dark:border-zinc-800 hidden md:flex",
         sidebarOpen ? "w-64" : "w-20"
       )}
     >
@@ -76,7 +95,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-14rem)] scrollbar-thin">
+        <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-14rem)] scrollbar-thin">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -106,7 +125,7 @@ export function Sidebar() {
                       : "text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-200"
                   )}
                 />
-                {sidebarOpen && <span>{item.name}</span>}
+                {sidebarOpen && <span>{copy.nav[NAV_KEY_BY_HREF[item.href]]}</span>}
               </Link>
             );
           })}

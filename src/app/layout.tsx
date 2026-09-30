@@ -36,7 +36,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full antialiased">
+    <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var saved=localStorage.getItem("agrivision-ui-preferences");if(saved){var theme=JSON.parse(saved)?.state?.theme;document.documentElement.classList.toggle("dark",theme!=="light")}}catch{}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>{children}</AuthProvider>
       </body>

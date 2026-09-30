@@ -20,15 +20,15 @@ export interface DailyForecast {
 export interface DetailedWeatherData {
   source: "live" | "fallback";
   temperature: number;
-  feelsLike: number;
+  feelsLike: number | null;
   condition: string;
   humidity: number;
   windSpeed: number;
-  windDirection: number;
+  windDirection: number | null;
   rainProbability: number;
-  soilMoisture: number; // percentage 0-100
-  soilTemp: number;
-  uvIndex: number;
+  soilMoisture: number | null; // volumetric water content in m³/m³, null when unavailable
+  soilTemp: number | null;
+  uvIndex: number | null;
   locationName: string;
   latitude: number;
   longitude: number;
@@ -105,21 +105,41 @@ export async function fetchLiveWeather(
     const daily = data.daily || {};
     const hourly = data.hourly || {};
 
-    const temp = Math.round(current.temperature_2m ?? 26);
-    const feelsLike = Math.round(current.apparent_temperature ?? temp);
-    const humidity = Math.round(current.relative_humidity_2m ?? 60);
-    const windSpeed = Math.round(current.wind_speed_10m ?? 10);
-    const windDirection = Math.round(current.wind_direction_10m ?? 180);
-    const soilTemp = Math.round(current.soil_temperature_0_to_7cm ?? 24);
-    // soil_moisture_0_to_7cm is returned as m³/m³ (0.0 - 0.5 typical). Convert to percentage (0 - 100% saturation)
-    const rawSoilMoisture = current.soil_moisture_0_to_7cm ?? 0.25;
-    const soilMoisture = Math.min(100, Math.max(0, Math.round((rawSoilMoisture / 0.45) * 100)));
+    const readFinite = (value: unknown): number | null =>
+      typeof value === "number" && Number.isFinite(value) ? value : null;
+    const requiredCurrent = [
+      current.temperature_2m,
+      current.relative_humidity_2m,
+      current.wind_speed_10m,
+      daily.precipitation_probability_max?.[0],
+    ].map(readFinite);
+    if (requiredCurrent.some((value) => value === null)) {
+      throw new Error("Weather provider response is missing required live measurements.");
+    }
 
-    const weatherCode = current.weather_code ?? 0;
+    const temp = Math.round(requiredCurrent[0]!);
+    const humidity = Math.round(requiredCurrent[1]!);
+    const windSpeed = Math.round(requiredCurrent[2]!);
+    const rainProbability = Math.round(requiredCurrent[3]!);
+    const feelsLikeValue = readFinite(current.apparent_temperature);
+    const feelsLike = feelsLikeValue === null ? null : Math.round(feelsLikeValue);
+    const windDirectionValue = readFinite(current.wind_direction_10m);
+    const windDirection = windDirectionValue === null ? null : Math.round(windDirectionValue);
+    const soilTempValue = readFinite(current.soil_temperature_0_to_7cm);
+    const soilTemp = soilTempValue === null ? null : Math.round(soilTempValue);
+    // Soil moisture is volumetric water content (m³/m³); preserve the provider's unit.
+    const rawSoilMoisture = readFinite(current.soil_moisture_0_to_7cm);
+    const soilMoisture = rawSoilMoisture !== null && rawSoilMoisture >= 0 && rawSoilMoisture <= 1
+      ? rawSoilMoisture
+      : null;
+
+    const weatherCode = readFinite(current.weather_code);
+    if (weatherCode === null) {
+      throw new Error("Weather provider response is missing the current condition code.");
+    }
     const condition = getWeatherConditionText(weatherCode);
-
-    const rainProbability = daily.precipitation_probability_max?.[0] ?? 0;
-    const uvIndex = daily.uv_index_max?.[0] ?? 5;
+    const uvIndexValue = readFinite(daily.uv_index_max?.[0]);
+    const uvIndex = uvIndexValue === null ? null : Math.round(uvIndexValue);
 
     // Parse Sunrise & Sunset
     const sunriseRaw = daily.sunrise?.[0] ? formatForecastTime(daily.sunrise[0]) : "06:00 AM";
@@ -134,12 +154,19 @@ export async function fetchLiveWeather(
         : -1;
       const nowIdx = matchingHourIndex >= 0 ? matchingHourIndex : new Date().getHours();
       for (let i = nowIdx; i < Math.min(nowIdx + 24, hourly.time.length); i++) {
+        const hourTemp = readFinite(hourly.temperature_2m?.[i]);
+        const hourHumidity = readFinite(hourly.relative_humidity_2m?.[i]);
+        const hourRainProb = readFinite(hourly.precipitation_probability?.[i]);
+        const hourWeatherCode = readFinite(hourly.weather_code?.[i]);
+        if (hourTemp === null || hourHumidity === null || hourRainProb === null || hourWeatherCode === null) {
+          continue;
+        }
         hourlyList.push({
           time: formatForecastTime(hourly.time[i]),
-          temp: Math.round(hourly.temperature_2m[i]),
-          humidity: Math.round(hourly.relative_humidity_2m[i]),
-          rainProb: Math.round(hourly.precipitation_probability[i] ?? 0),
-          condition: getWeatherConditionText(hourly.weather_code[i]),
+          temp: Math.round(hourTemp),
+          humidity: Math.round(hourHumidity),
+          rainProb: Math.round(hourRainProb),
+          condition: getWeatherConditionText(hourWeatherCode),
         });
       }
     }
@@ -148,6 +175,15 @@ export async function fetchLiveWeather(
     const dailyList: DailyForecast[] = [];
     if (daily.time && Array.isArray(daily.time)) {
       for (let i = 0; i < Math.min(7, daily.time.length); i++) {
+        const maxTemp = readFinite(daily.temperature_2m_max?.[i]);
+        const minTemp = readFinite(daily.temperature_2m_min?.[i]);
+        const dayWeatherCode = readFinite(daily.weather_code?.[i]);
+        const dayRainProb = readFinite(daily.precipitation_probability_max?.[i]);
+        const precipitation = readFinite(daily.precipitation_sum?.[i]);
+        const dayUvIndex = readFinite(daily.uv_index_max?.[i]);
+        if ([maxTemp, minTemp, dayWeatherCode, dayRainProb, precipitation, dayUvIndex].some((value) => value === null)) {
+          continue;
+        }
         const dayName = i === 0
           ? "Today"
           : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(
@@ -156,23 +192,21 @@ export async function fetchLiveWeather(
         dailyList.push({
           date: daily.time[i],
           dayName,
-          maxTemp: Math.round(daily.temperature_2m_max[i]),
-          minTemp: Math.round(daily.temperature_2m_min[i]),
-          condition: getWeatherConditionText(daily.weather_code[i]),
-          rainProb: daily.precipitation_probability_max[i] ?? 0,
-          precipitation: daily.precipitation_sum[i] ?? 0,
-          uvIndex: daily.uv_index_max[i] ?? 5,
+          maxTemp: Math.round(maxTemp!),
+          minTemp: Math.round(minTemp!),
+          condition: getWeatherConditionText(dayWeatherCode!),
+          rainProb: Math.round(dayRainProb!),
+          precipitation: precipitation!,
+          uvIndex: Math.round(dayUvIndex!),
         });
       }
     }
 
     // Compute dynamic agricultural advice based on real parameters
-    const irrigationNeeded = soilMoisture < 45 && rainProbability < 40;
-    const irrigationReason = irrigationNeeded
-      ? `Soil moisture is low (${soilMoisture}%) with low rain probability (${rainProbability}%). Irrigation recommended.`
-      : rainProbability >= 40
-      ? `High rain probability (${rainProbability}%). Hold off irrigation to conserve water.`
-      : `Soil moisture levels (${soilMoisture}%) are optimal. No immediate irrigation needed.`;
+    const irrigationNeeded = false;
+    const irrigationReason = soilMoisture === null
+      ? `Live soil-moisture data is unavailable. Check field conditions before deciding whether to irrigate; forecast rain probability is ${rainProbability}%.`
+      : `The provider models volumetric soil water at ${soilMoisture.toFixed(2)} m³/m³. This is not a field sensor reading and needs crop- and soil-specific thresholds; check field conditions before deciding. Forecast rain probability is ${rainProbability}%.`;
 
     const sprayingRecommended = windSpeed < 15 && rainProbability < 30 && temp < 32;
     const sprayingReason = sprayingRecommended
@@ -225,7 +259,7 @@ export async function fetchLiveWeather(
       windSpeed: 12,
       windDirection: 180,
       rainProbability: 25,
-      soilMoisture: 48,
+      soilMoisture: null,
       soilTemp: 24,
       uvIndex: 6,
       locationName: `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`,

@@ -13,6 +13,7 @@ export default auth((req) => {
     "/disease-detection",
     "/plant-identification",
     "/irrigation",
+    "/fertilizer",
     "/reports",
     "/weather",
     "/profile",

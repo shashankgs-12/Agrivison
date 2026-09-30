@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import {
   MapPin,
   Maximize2,
@@ -14,10 +14,12 @@ import { cn } from "@/lib/utils/cn";
 import { useFarms } from "@/hooks/use-farms";
 import { useCrops } from "@/hooks/use-crops";
 import { useDiseaseRecords } from "@/hooks/use-history";
-import { useAuthStore } from "@/stores/auth-store";
+import { useLanguage } from "@/hooks/use-language";
+import { getDashboardText } from "@/lib/i18n/localization";
 
 export function StatCards() {
-  const { user } = useAuthStore();
+  const { language } = useLanguage();
+  const copy = getDashboardText(language);
   const { farms } = useFarms();
   const { crops } = useCrops();
   const { diseaseRecords } = useDiseaseRecords();
@@ -33,36 +35,36 @@ export function StatCards() {
   const STATS = [
     {
       id: "farms",
-      title: "Total Farms",
+      title: copy.farms,
       value: `${totalFarmsCount}`,
-      change: totalFarmsCount === 0 ? "0 Farms added" : `${totalFarmsCount} active farms`,
+      change: (totalFarmsCount === 0 ? copy.farmsAdded : copy.activeFarms).replace("{count}", String(totalFarmsCount)),
       trend: totalFarmsCount > 0 ? "up" : "neutral",
       Icon: MapPin,
       color: "emerald",
     },
     {
       id: "area",
-      title: "Total Area",
-      value: `${totalAreaAcres} Acres`,
-      change: totalFarmsCount === 0 ? "0.0 Acres" : "Total Cultivated Area",
+      title: copy.area,
+      value: `${totalAreaAcres} ${copy.acres}`,
+      change: totalFarmsCount === 0 ? `0.0 ${copy.acres}` : copy.cultivatedArea,
       trend: "neutral",
       Icon: Maximize2,
       color: "blue",
     },
     {
       id: "crops",
-      title: "Registered Crops",
+      title: copy.crops,
       value: `${totalCropsCount}`,
-      change: totalCropsCount === 0 ? "0 Crops registered" : `${totalCropsCount} active crops`,
+      change: (totalCropsCount === 0 ? copy.cropsRegistered : copy.activeCrops).replace("{count}", String(totalCropsCount)),
       trend: totalCropsCount > 0 ? "up" : "neutral",
       Icon: Sprout,
       color: "amber",
     },
     {
       id: "alerts",
-      title: "Disease Alerts",
-      value: `${activeAlertsCount} Active`,
-      change: activeAlertsCount > 0 ? "Action required" : "0 Critical alerts",
+      title: copy.diseaseAlerts,
+      value: copy.active.replace("{count}", String(activeAlertsCount)),
+      change: activeAlertsCount > 0 ? copy.actionRequired : copy.criticalAlerts.replace("{count}", "0"),
       trend: activeAlertsCount > 0 ? "down" : "up",
       Icon: AlertTriangle,
       color: activeAlertsCount > 0 ? "rose" : "emerald",

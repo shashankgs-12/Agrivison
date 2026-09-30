@@ -5,15 +5,10 @@ import Link from "next/link";
 import {
   Sprout,
   Plus,
-  Calendar,
-  MapPin,
-  Droplets,
-  TrendingUp,
   ShieldCheck,
-  AlertTriangle,
   Trash2,
   X,
-  CheckCircle2,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,29 +16,50 @@ import { useCrops } from "@/hooks/use-crops";
 import { useFarms } from "@/hooks/use-farms";
 import { useAuthStore } from "@/stores/auth-store";
 import { Crop } from "@/stores/crop-store";
+import { CropLifecycleFields, type CropLifecycleFormValues } from "@/components/crops/crop-lifecycle-fields";
+import { getCropCareReminders, getCropDateAfterDays, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
+import { useLanguage } from "@/hooks/use-language";
+import { getCropHelp, getUiText } from "@/lib/i18n/localization";
+
+type CropRegistrationData = Omit<ReturnType<typeof newCropFormData>, keyof CropLifecycleFormValues> & CropLifecycleFormValues;
+
+function newCropFormData(area = 5) {
+  return {
+    name: "",
+    variety: "",
+    farmId: "",
+    sowingDate: getCropDateAfterDays(0),
+    lifecycleType: "ANNUAL" as const,
+    expectedHarvest: getCropDateAfterDays(120),
+    establishmentPeriodMonths: 12,
+    maturityPeriodMonths: 36,
+    firstExpectedHarvest: "",
+    harvestIntervalMonths: 12,
+    maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
+    growthStage: "Seedling" as Crop["growthStage"],
+    area,
+    waterNeed: "Medium" as Crop["waterNeed"],
+    health: "Excellent" as Crop["health"],
+    diseaseStatus: "Healthy",
+  };
+}
 
 export default function CropsPage() {
   const { user } = useAuthStore();
+  const { language } = useLanguage();
+  const copy = getUiText(language);
+  const cropFieldHelp = getCropHelp(language);
   const { crops, addCrop, deleteCrop } = useCrops();
   const { farms } = useFarms();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCropHelpOpen, setIsCropHelpOpen] = useState(false);
+  const [cropSavedMessage, setCropSavedMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   // Form State
-  const [formData, setFormData] = useState(() => ({
-    name: "",
-    variety: "",
-    farmId: "",
-    sowingDate: new Date().toISOString().split("T")[0],
-    expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    growthStage: "Seedling" as Crop["growthStage"],
-    area: 5,
-    waterNeed: "Medium" as Crop["waterNeed"],
-    health: "Excellent" as Crop["health"],
-    diseaseStatus: "Healthy",
-  }));
+  const [formData, setFormData] = useState<CropRegistrationData>(() => newCropFormData());
   const selectedFarm = farms.find((farm) => farm.id === formData.farmId);
 
   const handleCreateCrop = (e: React.FormEvent) => {
@@ -58,8 +74,17 @@ export default function CropsPage() {
       return;
     }
 
-    if (Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate)) {
+    if (formData.lifecycleType === "ANNUAL" && (!formData.expectedHarvest || Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate))) {
       setFormError("Expected harvest date must be on or after the sowing date.");
+      return;
+    }
+
+    if (formData.lifecycleType === "PERENNIAL" && formData.maturityPeriodMonths <= formData.establishmentPeriodMonths) {
+      setFormError("Maturity period must be longer than the establishment period.");
+      return;
+    }
+    if (formData.firstExpectedHarvest && Date.parse(formData.firstExpectedHarvest) < Date.parse(formData.sowingDate)) {
+      setFormError("First expected harvest must be on or after the planting date.");
       return;
     }
 
@@ -72,7 +97,13 @@ export default function CropsPage() {
       name: formData.name,
       variety: formData.variety,
       sowingDate: formData.sowingDate,
-      expectedHarvest: formData.expectedHarvest,
+      expectedHarvest: formData.lifecycleType === "ANNUAL" ? formData.expectedHarvest : undefined,
+      lifecycleType: formData.lifecycleType,
+      establishmentPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.establishmentPeriodMonths : undefined,
+      maturityPeriodMonths: formData.lifecycleType === "PERENNIAL" ? formData.maturityPeriodMonths : undefined,
+      firstExpectedHarvest: formData.lifecycleType === "PERENNIAL" ? formData.firstExpectedHarvest || undefined : undefined,
+      harvestIntervalMonths: formData.lifecycleType === "PERENNIAL" ? formData.harvestIntervalMonths : undefined,
+      maintenanceSchedule: formData.maintenanceSchedule,
       growthStage: formData.growthStage,
       area: Number(formData.area),
       waterNeed: formData.waterNeed,
@@ -80,38 +111,14 @@ export default function CropsPage() {
       diseaseStatus: formData.diseaseStatus,
     });
 
+    setCropSavedMessage(`${formData.name.trim()}: ${copy.help.saved}`);
     setIsAddModalOpen(false);
-    setFormData({
-      name: "",
-      variety: "",
-      farmId: "",
-      sowingDate: new Date().toISOString().split("T")[0],
-      expectedHarvest: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      growthStage: "Seedling",
-      area: 5,
-      waterNeed: "Medium",
-      health: "Excellent",
-      diseaseStatus: "Healthy",
-    });
+    setIsCropHelpOpen(false);
+    setFormData(newCropFormData());
   };
 
-  const calculateProgress = (sowingDateStr: string, harvestDateStr: string): number => {
-    try {
-      const sowing = new Date(sowingDateStr).getTime();
-      const harvest = new Date(harvestDateStr).getTime();
-      const now = new Date().getTime();
-
-      if (now <= sowing) return 0;
-      if (now >= harvest) return 100;
-
-      const totalDuration = harvest - sowing;
-      if (!Number.isFinite(totalDuration) || totalDuration <= 0) return 0;
-      const elapsed = now - sowing;
-
-      return Math.min(100, Math.max(1, Math.round((elapsed / totalDuration) * 100)));
-    } catch (e) {
-      return 45;
-    }
+  const updateLifecycle = (patch: Partial<CropLifecycleFormValues>) => {
+    setFormData((current) => ({ ...current, ...patch }));
   };
 
   const filteredCrops = crops.filter(
@@ -134,13 +141,19 @@ export default function CropsPage() {
           </p>
         </div>
         <Button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => { setCropSavedMessage(null); setIsCropHelpOpen(false); setIsAddModalOpen(true); }}
           className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
         >
           <Plus className="h-5 w-5 mr-1" />
           Register Crop
         </Button>
       </div>
+
+      {cropSavedMessage && (
+        <p role="status" className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
+          {cropSavedMessage}
+        </p>
+      )}
 
       {/* Zero Crops Empty State */}
       {crops.length === 0 ? (
@@ -158,7 +171,7 @@ export default function CropsPage() {
           </div>
           <Button
             size="lg"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => { setCropSavedMessage(null); setIsCropHelpOpen(false); setIsAddModalOpen(true); }}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8"
           >
             <Plus className="h-5 w-5 mr-2" />
@@ -181,7 +194,13 @@ export default function CropsPage() {
           {/* Crop Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredCrops.map((crop) => {
-              const progress = calculateProgress(crop.sowingDate, crop.expectedHarvest);
+              const lifecycle = getCropLifecycleInfo(crop);
+              const nextCare = getCropCareReminders(crop)[0];
+              const harvestDescription = lifecycle.lifecycleType === "PERENNIAL"
+                ? lifecycle.nextHarvestDate
+                  ? `Next ${lifecycle.nextHarvestDate} · every ${crop.harvestIntervalMonths ?? 12} months`
+                  : `Recurring · first date not set`
+                : crop.expectedHarvest || "Not set";
 
               return (
                 <div
@@ -212,13 +231,13 @@ export default function CropsPage() {
                     {/* Progress Bar */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="text-slate-500">Growth Stage: {crop.growthStage}</span>
-                        <span className="text-emerald-600 font-bold">{progress}%</span>
+                        <span className="text-slate-500">Life stage: {lifecycle.stage}</span>
+                        <span className="text-emerald-600 font-bold">{lifecycle.progress}%</span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden dark:bg-slate-800">
                         <div
                           className="bg-emerald-500 h-2 rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${lifecycle.progress}%` }}
                         />
                       </div>
                     </div>
@@ -230,8 +249,12 @@ export default function CropsPage() {
                         <p className="font-bold text-slate-800 mt-0.5 dark:text-slate-200">{crop.sowingDate}</p>
                       </div>
                       <div className="p-2.5 bg-slate-50 rounded-lg dark:bg-slate-800/80">
-                        <span className="text-slate-400 font-medium">Expected Harvest</span>
-                        <p className="font-bold text-slate-800 mt-0.5 dark:text-slate-200">{crop.expectedHarvest}</p>
+                        <span className="text-slate-400 font-medium">{lifecycle.lifecycleType === "PERENNIAL" ? "Harvest cycle" : "Expected Harvest"}</span>
+                        <p className="font-bold text-slate-800 mt-0.5 dark:text-slate-200">{harvestDescription}</p>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg dark:bg-slate-800/80">
+                        <span className="text-slate-400 font-medium">Crop age</span>
+                        <p className="font-bold text-slate-800 mt-0.5 dark:text-slate-200">{lifecycle.ageLabel}</p>
                       </div>
                       <div className="p-2.5 bg-slate-50 rounded-lg dark:bg-slate-800/80">
                         <span className="text-slate-400 font-medium">Area</span>
@@ -242,6 +265,7 @@ export default function CropsPage() {
                         <p className="font-bold text-slate-800 mt-0.5 dark:text-slate-200">{crop.waterNeed}</p>
                       </div>
                     </div>
+                    {nextCare && <p className="text-[11px] text-sky-700 dark:text-sky-300">Next reminder: {nextCare.activity} · {nextCare.nextDue}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between dark:border-slate-800">
@@ -267,21 +291,22 @@ export default function CropsPage() {
       {/* Add Crop Registration Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-5 dark:bg-slate-900 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div role="dialog" aria-modal="true" aria-labelledby="crop-registration-title" className="relative flex max-h-[min(90dvh,56rem)] max-w-lg w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 pt-6 pb-3 dark:border-slate-800">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Sprout className="h-5 w-5 text-emerald-600" />
-                Register New Crop
+                <span id="crop-registration-title">Register New Crop</span>
               </h3>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => { setIsCropHelpOpen(false); setIsAddModalOpen(false); }}
                 className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCrop} className="space-y-4 text-xs font-semibold">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-4 sm:px-6">
+            <form id="crop-registration-form" onSubmit={handleCreateCrop} className="space-y-4 text-xs font-semibold">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1">Select Farm *</label>
                 <select
@@ -291,11 +316,11 @@ export default function CropsPage() {
                     const farmId = e.target.value;
                     const farm = farms.find((item) => item.id === farmId);
                     setFormError(null);
-                    setFormData({
-                      ...formData,
+                    setFormData((current) => ({
+                      ...current,
                       farmId,
-                      area: farm ? Math.min(formData.area, farm.area) : formData.area,
-                    });
+                      area: farm ? Math.min(current.area, farm.area) : current.area,
+                    }));
                   }}
                   className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold"
                 >
@@ -313,7 +338,7 @@ export default function CropsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Crop Name *</label>
                   <input
@@ -337,8 +362,7 @@ export default function CropsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Planting / Sowing Date</label>
                   <input
                     type="date"
@@ -347,20 +371,14 @@ export default function CropsPage() {
                     onChange={(e) => setFormData({ ...formData, sowingDate: e.target.value })}
                     className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   />
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 mb-1">Expected Harvest Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.expectedHarvest}
-                    onChange={(e) => setFormData({ ...formData, expectedHarvest: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <CropLifecycleFields
+                value={formData}
+                onChange={updateLifecycle}
+              />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Growth Stage</label>
                   <select
@@ -413,24 +431,64 @@ export default function CropsPage() {
                 </p>
               )}
 
-              <div className="pt-3 flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={farms.length === 0}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-                >
-                  Save Crop
-                </Button>
-              </div>
             </form>
+            </div>
+
+            <div className="flex shrink-0 gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 sm:px-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setIsCropHelpOpen(false); setIsAddModalOpen(false); }}
+                className="min-h-11 flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="crop-registration-form"
+                disabled={farms.length === 0}
+                className="min-h-11 flex-1 bg-emerald-600 text-white hover:bg-emerald-500 font-bold"
+              >
+                Save Crop
+              </Button>
+            </div>
+
+            {isCropHelpOpen && (
+              <section id="crop-registration-help" aria-label={copy.help.title} className="liquid-glass-panel absolute bottom-[6.25rem] right-3 z-30 flex max-h-[min(62dvh,32rem)] w-[min(22rem,calc(100vw-3.5rem))] flex-col overflow-hidden rounded-2xl border border-emerald-300/70 bg-white shadow-2xl ring-1 ring-black/10 dark:border-emerald-800 dark:bg-slate-950">
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{copy.help.title}</h4>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{copy.help.subtitle}</p>
+                  </div>
+                  <button type="button" onClick={() => setIsCropHelpOpen(false)} aria-label={copy.help.close} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto overscroll-contain px-4 py-2.5">
+                  <dl className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {cropFieldHelp.map(({ field, explanation, example }) => (
+                      <div key={field} className="py-2.5 first:pt-1 last:pb-1">
+                        <dt className="text-xs font-bold text-emerald-700 dark:text-emerald-300">{field}</dt>
+                        <dd className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">{explanation}</dd>
+                        <dd className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400"><span className="font-semibold">{copy.help.example}:</span> {example}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </section>
+            )}
+            <button
+              type="button"
+              aria-label={isCropHelpOpen ? copy.help.close : copy.help.title}
+              aria-expanded={isCropHelpOpen}
+              aria-controls="crop-registration-help"
+              title={copy.help.subtitle}
+              onClick={() => setIsCropHelpOpen((open) => !open)}
+              className="liquid-glass-panel absolute bottom-[5.5rem] right-4 z-40 flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-emerald-300 bg-emerald-600/95 px-3 text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 dark:border-emerald-700 dark:ring-offset-slate-900"
+            >
+              <ChevronUp className={`h-5 w-5 transition-transform ${isCropHelpOpen ? "rotate-180" : ""}`} />
+              <span className="sr-only">{copy.help.button}</span>
+            </button>
           </div>
         </div>
       )}

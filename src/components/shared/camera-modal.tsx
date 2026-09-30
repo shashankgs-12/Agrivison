@@ -13,53 +13,68 @@ interface CameraModalProps {
 export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestIdRef = useRef(0);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-
-  const startCamera = async (mode: "environment" | "user") => {
-    setError(null);
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
-
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err: unknown) {
-      console.error("Camera access error:", err);
-      setError("Unable to access camera. Please allow camera permissions in your browser or select an image file.");
-    }
-  };
+  const cameraError = error ?? (
+    isOpen && !capturedImage && typeof navigator !== "undefined" && !navigator.mediaDevices?.getUserMedia
+      ? "Camera access is unavailable in this browser. Please select an image file instead."
+      : null
+  );
 
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    if (isOpen && !capturedImage) {
-      t = setTimeout(() => startCamera(facingMode), 0);
-    } else {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setTimeout(() => setStream(null), 0);
+    if (!isOpen || capturedImage) return;
+
+    let cancelled = false;
+    const requestId = ++cameraRequestIdRef.current;
+    const getUserMedia = navigator.mediaDevices?.getUserMedia;
+    const videoElement = videoRef.current;
+
+    if (!getUserMedia) return;
+
+    void getUserMedia.call(navigator.mediaDevices, {
+      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).then((mediaStream) => {
+      if (cancelled || requestId !== cameraRequestIdRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
       }
-    }
+      streamRef.current = mediaStream;
+      setStream(mediaStream);
+    }).catch((err: unknown) => {
+      if (cancelled || requestId !== cameraRequestIdRef.current) return;
+      const errorName = err instanceof DOMException ? err.name : "";
+      setError(
+        errorName === "NotAllowedError" || errorName === "SecurityError"
+          ? "Camera permission was denied. Allow camera access in browser settings, or select an image file."
+          : "Unable to start the camera. Check camera availability, or select an image file."
+      );
+    });
+
     return () => {
-      clearTimeout(t);
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      cancelled = true;
+      cameraRequestIdRef.current += 1;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
+      if (videoElement) videoElement.srcObject = null;
     };
-  }, [isOpen, facingMode]);
+  }, [isOpen, facingMode, capturedImage]);
+
+  useEffect(() => {
+    if (!videoRef.current || !stream) return;
+    videoRef.current.srcObject = stream;
+    void videoRef.current.play().catch(() => undefined);
+  }, [stream]);
 
   const handleTakeSnapshot = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !videoRef.current.videoWidth) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -70,6 +85,10 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setStream(null);
+      setIsCameraReady(false);
       setCapturedImage(dataUrl);
     }
   };
@@ -82,10 +101,11 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
   };
 
   const handleClose = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    cameraRequestIdRef.current += 1;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setStream(null);
+    setIsCameraReady(false);
     setCapturedImage(null);
     setError(null);
     onClose();
@@ -93,6 +113,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
 
   const toggleFacingMode = () => {
     const nextMode = facingMode === "environment" ? "user" : "environment";
+    setIsCameraReady(false);
     setFacingMode(nextMode);
   };
 
@@ -108,8 +129,10 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
             <span>Camera Capture</span>
           </div>
           <button
+            type="button"
             onClick={handleClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close camera"
+            className="min-h-11 min-w-11 touch-manipulation rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -117,10 +140,10 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
 
         {/* Video / Snapshot View */}
         <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-          {error ? (
+          {cameraError ? (
             <div className="p-6 text-center text-rose-400 space-y-2">
               <AlertCircle className="h-10 w-10 mx-auto" />
-              <p className="text-sm font-medium">{error}</p>
+              <p className="text-sm font-medium">{cameraError}</p>
             </div>
           ) : capturedImage ? (
             <>
@@ -133,6 +156,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               autoPlay
               playsInline
               muted
+              onCanPlay={() => setIsCameraReady(true)}
               className="w-full h-full object-cover"
             />
           )}
@@ -140,7 +164,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
           <canvas ref={canvasRef} className="hidden" />
 
           {/* Camera controls overlay */}
-          {!capturedImage && !error && (
+          {!capturedImage && !cameraError && (
             <div className="absolute top-3 right-3">
               <Button
                 variant="outline"
@@ -176,12 +200,12 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
             </>
           ) : (
             <Button
-              disabled={!!error}
+              disabled={!!cameraError || !isCameraReady}
               onClick={handleTakeSnapshot}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-6 text-base shadow-lg shadow-emerald-900/30"
             >
               <Camera className="h-5 w-5 mr-2" />
-              Capture Snapshot
+              {isCameraReady ? "Capture Snapshot" : "Starting camera…"}
             </Button>
           )}
         </div>

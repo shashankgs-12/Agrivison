@@ -11,6 +11,8 @@ import {
   Droplets,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useLanguage } from "@/hooks/use-language";
+import { getUiText } from "@/lib/i18n/localization";
 
 export const MOBILE_BOTTOM_NAV = [
   { name: "Home", href: "/dashboard", icon: LayoutDashboard },
@@ -22,13 +24,16 @@ export const MOBILE_BOTTOM_NAV = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { language } = useLanguage();
+  const copy = getUiText(language);
+  const labels = [copy.nav.home, copy.nav.farms, copy.nav.scan, copy.nav.weather, copy.nav.irrigate];
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.4rem)] flex items-center justify-around dark:bg-slate-900/95 dark:border-slate-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+      className="glass-chrome md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.4rem)] flex items-center justify-around dark:bg-slate-900/95 dark:border-slate-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] touch-pan-y"
       aria-label="Bottom Navigation"
     >
-      {MOBILE_BOTTOM_NAV.map((item) => {
+      {MOBILE_BOTTOM_NAV.map((item, index) => {
         const Icon = item.icon;
         const isActive =
           pathname === item.href ||
@@ -54,7 +59,7 @@ export function MobileNav() {
                   : "text-slate-600 dark:text-slate-300"
               )}
             />
-            <span className="leading-tight">{item.name}</span>
+            <span className="leading-tight">{labels[index]}</span>
           </Link>
         );
       })}

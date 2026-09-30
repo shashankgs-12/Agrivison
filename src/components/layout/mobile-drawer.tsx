@@ -12,6 +12,7 @@ import {
   Sparkles,
   CloudSun,
   Droplets,
+  FlaskConical,
   FileBarChart,
   Settings,
   X,
@@ -24,6 +25,22 @@ import { cn } from "@/lib/utils/cn";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { Avatar } from "@/components/ui/avatar";
+import { useLanguage } from "@/hooks/use-language";
+import { getUiText, type NavigationKey } from "@/lib/i18n/localization";
+
+const DRAWER_NAV_KEY_BY_HREF: Record<string, NavigationKey> = {
+  "/dashboard": "dashboard",
+  "/farms": "farms",
+  "/crops": "crops",
+  "/disease-detection": "disease",
+  "/plant-identification": "plant",
+  "/weather": "weather",
+  "/irrigation": "irrigation",
+  "/fertilizer": "fertilizer",
+  "/reports": "reports",
+  "/settings": "settings",
+  "/profile": "profile",
+};
 
 const MOBILE_DRAWER_NAV = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -33,6 +50,7 @@ const MOBILE_DRAWER_NAV = [
   { name: "Plant ID", href: "/plant-identification", icon: Sparkles },
   { name: "Weather", href: "/weather", icon: CloudSun },
   { name: "Irrigation Advisor", href: "/irrigation", icon: Droplets },
+  { name: "Fertilizer Advisor", href: "/fertilizer", icon: FlaskConical },
   { name: "Reports", href: "/reports", icon: FileBarChart },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "My Profile", href: "/profile", icon: UserIcon },
@@ -43,6 +61,8 @@ export function MobileDrawer() {
   const router = useRouter();
   const { isMobileMenuOpen, closeMobileMenu } = useUIStore();
   const { user, logout } = useAuthStore();
+  const { language } = useLanguage();
+  const copy = getUiText(language);
 
   // Close drawer on route change
   useEffect(() => {
@@ -83,7 +103,7 @@ export function MobileDrawer() {
   };
 
   return (
-    <div className="md:hidden fixed inset-0 z-50 flex animate-fade-in" role="dialog" aria-modal="true" aria-label="Mobile Navigation Drawer">
+      <div className="md:hidden fixed inset-0 z-50 flex animate-fade-in" role="dialog" aria-modal="true" aria-label="Mobile Navigation Drawer">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
@@ -92,7 +112,7 @@ export function MobileDrawer() {
       />
 
       {/* Drawer Panel */}
-      <div className="relative w-[300px] max-w-[85vw] h-full bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 flex flex-col justify-between shadow-2xl z-10 animate-slide-in-right">
+      <div className="relative w-[300px] max-w-[85vw] h-dvh bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 flex flex-col justify-between shadow-2xl z-10 animate-slide-in-right">
         {/* Header */}
         <div>
           <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -124,7 +144,7 @@ export function MobileDrawer() {
           </div>
 
           {/* Navigation Items */}
-          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-17rem)] scrollbar-thin">
+          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-17rem)] scrollbar-thin">
             {MOBILE_DRAWER_NAV.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -154,7 +174,7 @@ export function MobileDrawer() {
                         : "text-zinc-500 group-hover:text-zinc-800 dark:text-zinc-400 dark:group-hover:text-zinc-100"
                     )}
                   />
-                  <span>{item.name}</span>
+                  <span>{copy.nav[DRAWER_NAV_KEY_BY_HREF[item.href]]}</span>
                 </Link>
               );
             })}
@@ -206,7 +226,7 @@ export function MobileDrawer() {
             <Link
               href="/settings"
               onClick={closeMobileMenu}
-              className="w-full py-1.5 px-3 bg-white text-[#008631] font-bold text-[11px] rounded-lg hover:bg-emerald-50 transition-colors flex items-center justify-center gap-1 shadow-sm"
+              className="min-h-11 w-full touch-manipulation py-1.5 px-3 bg-white text-[#008631] font-bold text-[11px] rounded-lg hover:bg-emerald-50 active:bg-emerald-100 transition-colors flex items-center justify-center gap-1 shadow-sm"
             >
               <Zap className="h-3 w-3 text-amber-500 fill-amber-500" />
               Manage Plan

@@ -5,13 +5,9 @@ import {
   CloudSun,
   Droplets,
   Wind,
-  CloudRain,
   Sun,
-  Locate,
   MapPin,
   RefreshCw,
-  Eye,
-  Thermometer,
 } from "lucide-react";
 import { useWeatherStore } from "@/stores/weather-store";
 import { Button } from "@/components/ui/button";
@@ -23,20 +19,16 @@ export default function WeatherPage() {
     if (!weather) {
       detectGPSAndFetch();
     }
-  }, []);
+  }, [detectGPSAndFetch, weather]);
 
   const locationName = weather?.locationName ?? "Live GPS Location";
-  const temp = weather?.temperature ?? 26;
-  const feelsLike = weather?.feelsLike ?? temp;
-  const condition = weather?.condition ?? "Partly Cloudy";
-  const humidity = weather?.humidity ?? 60;
-  const windSpeed = weather?.windSpeed ?? 12;
-  const rainProb = weather?.rainProbability ?? 20;
-  const soilMoisture = weather?.soilMoisture ?? 45;
-  const soilTemp = weather?.soilTemp ?? 24;
-  const uvIndex = weather?.uvIndex ?? 5;
-  const sunrise = weather?.sunrise ?? "06:00 AM";
-  const sunset = weather?.sunset ?? "06:30 PM";
+  const temp = weather?.temperature ?? null;
+  const feelsLike = weather?.feelsLike ?? null;
+  const condition = weather?.condition ?? (loading ? "Loading weather…" : "Weather unavailable");
+  const humidity = weather?.humidity ?? null;
+  const windSpeed = weather?.windSpeed ?? null;
+  const rainProb = weather?.rainProbability ?? null;
+  const soilMoisture = weather?.soilMoisture ?? null;
 
   const dailyForecast = weather?.daily || [];
 
@@ -102,29 +94,29 @@ export default function WeatherPage() {
           </span>
 
           <div className="flex items-baseline gap-4">
-            <span className="text-6xl font-black tracking-tight">{temp}°C</span>
+            <span className="text-6xl font-black tracking-tight">{temp === null ? "—" : `${temp}°C`}</span>
             <div>
               <p className="text-xl font-bold text-emerald-100">{condition}</p>
-              <p className="text-xs text-emerald-200">Feels like {feelsLike}°C</p>
+              <p className="text-xs text-emerald-200">Feels like {feelsLike === null ? "unavailable" : `${feelsLike}°C`}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-white/20 text-xs">
             <div>
               <p className="text-emerald-200 font-semibold">Humidity</p>
-              <p className="text-xl font-bold">{humidity}%</p>
+              <p className="text-xl font-bold">{humidity === null ? "—" : `${humidity}%`}</p>
             </div>
             <div>
               <p className="text-emerald-200 font-semibold">Wind Speed</p>
-              <p className="text-xl font-bold">{windSpeed} km/h</p>
+              <p className="text-xl font-bold">{windSpeed === null ? "—" : `${windSpeed} km/h`}</p>
             </div>
             <div>
               <p className="text-emerald-200 font-semibold">Rain Risk</p>
-              <p className="text-xl font-bold">{rainProb}%</p>
+              <p className="text-xl font-bold">{rainProb === null ? "—" : `${rainProb}%`}</p>
             </div>
             <div>
               <p className="text-emerald-200 font-semibold">Soil Moisture</p>
-              <p className="text-xl font-bold">{soilMoisture}%</p>
+              <p className="text-xl font-bold">{soilMoisture === null ? "Unavailable" : `${soilMoisture.toFixed(2)} m³/m³`}</p>
             </div>
           </div>
         </div>
@@ -156,7 +148,7 @@ export default function WeatherPage() {
               <Sun className="h-4 w-4" /> Harvesting Condition
             </span>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-              Condition rating: <strong>{weather.agriculturalAdvice.harvestingCondition}</strong> based on humidity ({humidity}%) and rain risk ({rainProb}%).
+              Condition rating: <strong>{weather.agriculturalAdvice.harvestingCondition}</strong> based on humidity ({humidity === null ? "unavailable" : `${humidity}%`}) and rain risk ({rainProb === null ? "unavailable" : `${rainProb}%`}).
             </p>
           </div>
         </div>

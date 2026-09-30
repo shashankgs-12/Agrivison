@@ -8,7 +8,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col">
+    <div className="min-h-dvh bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col">
       {/* Auth Header */}
       <div className="px-4 py-3 sm:px-6 sm:py-5 flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5 min-h-[44px]">
@@ -22,7 +22,7 @@ export default function AuthLayout({
       </div>
 
       {/* Auth content */}
-      <div className="flex-1 flex items-center justify-center px-3 sm:px-4 py-2 sm:py-8 pb-8 sm:pb-12">
+      <div className="flex-1 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-8 sm:pb-12">
         {children}
       </div>
     </div>

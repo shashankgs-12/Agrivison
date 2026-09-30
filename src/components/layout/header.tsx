@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -23,13 +23,17 @@ import { Badge } from "@/components/ui/badge";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import { useUIStore } from "@/stores/ui-store";
 import { useLanguageStore } from "@/stores/language-store";
+import { useLanguage } from "@/hooks/use-language";
+import { getUiText } from "@/lib/i18n/localization";
 import { useAuthStore } from "@/stores/auth-store";
 import { useDiseaseRecords } from "@/hooks/use-history";
 
 export function Header() {
   const router = useRouter();
   const { toggleMobileMenu, theme, toggleTheme } = useUIStore();
-  const { preferences, setPreference } = useLanguageStore();
+  const { preferences, setAppLanguage } = useLanguageStore();
+  const { language } = useLanguage();
+  const copy = getUiText(language);
   const { user, logout } = useAuthStore();
   const { diseaseRecords } = useDiseaseRecords();
 
@@ -49,6 +53,10 @@ export function Header() {
     (r) => r.severity === "critical" || r.severity === "high"
   );
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const handleLogout = async () => {
     setShowUserMenu(false);
     logout();
@@ -60,7 +68,7 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-30 px-3 md:px-6 flex items-center justify-between gap-2 sm:gap-4 dark:bg-slate-900/90 dark:border-slate-800">
+    <header className="glass-chrome h-16 border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-30 px-3 md:px-6 flex items-center justify-between gap-2 sm:gap-4 dark:bg-slate-900/90 dark:border-slate-800">
       {/* Left: Mobile Toggle & Search Bar */}
       <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md min-w-0">
         <button
@@ -76,7 +84,7 @@ export function Header() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 dark:text-slate-400" />
           <input
             type="text"
-            placeholder="Search farms, crops..."
+            placeholder={copy.header.search}
             className="w-full h-9 pl-9 pr-3 text-xs md:text-sm bg-slate-100 border border-transparent rounded-full text-slate-900 placeholder:text-slate-500 focus:bg-white focus:border-emerald-500 focus:outline-none transition-all dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
           />
         </div>
@@ -121,15 +129,15 @@ export function Header() {
           </button>
 
           {showLangMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50 animate-fade-in dark:bg-slate-900 dark:border-slate-800">
+            <div className="liquid-glass-panel absolute right-0 mt-2 w-48 bg-white/95 rounded-xl shadow-xl border border-slate-200 py-1 z-50 animate-fade-in dark:bg-slate-900/95 dark:border-slate-800">
               <div className="px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">
-                Dashboard Language
+                {copy.header.language}
               </div>
               {SUPPORTED_LANGUAGES.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => {
-                    setPreference("dashboard", lang.code);
+                    setAppLanguage(lang.code);
                     setShowLangMenu(false);
                   }}
                   className="w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-emerald-50 text-slate-700 hover:text-emerald-600 font-semibold transition-colors dark:text-slate-200 dark:hover:bg-emerald-950/50 cursor-pointer min-h-[40px]"
@@ -162,7 +170,7 @@ export function Header() {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 animate-fade-in dark:bg-slate-900 dark:border-slate-800">
+            <div className="liquid-glass-panel absolute right-0 mt-2 w-80 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 animate-fade-in dark:bg-slate-900/95 dark:border-slate-800">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-2">
                 <span className="font-bold text-sm text-slate-900 dark:text-white">Notifications</span>
                 <Badge className={activeAlerts.length > 0 ? "bg-rose-500 text-white" : "bg-emerald-600 text-white"}>
@@ -225,7 +233,7 @@ export function Header() {
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-fade-in dark:bg-slate-900 dark:border-slate-800">
+            <div className="liquid-glass-panel absolute right-0 mt-2 w-56 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-fade-in dark:bg-slate-900/95 dark:border-slate-800">
               <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-xs font-bold text-slate-900 dark:text-white">{userName}</p>
                 <p className="text-[11px] text-slate-500 truncate dark:text-slate-400">{user?.email || "farmer@agrivision.ai"}</p>

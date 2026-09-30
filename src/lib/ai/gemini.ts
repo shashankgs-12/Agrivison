@@ -159,11 +159,14 @@ export async function analyzeImageWithGemini(
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
-export async function generateTextWithGemini(promptText: string) {
+export async function generateTextWithGemini(
+  promptText: string,
+  task = "agronomist-chat"
+) {
   const requestBody = {
     contents: [{ parts: [{ text: promptText }] }],
   };
 
-  const data = await postGeminiWithFallback(requestBody, "agronomist-chat", GEMINI_TEXT_MODELS);
+  const data = await postGeminiWithFallback(requestBody, task, GEMINI_TEXT_MODELS);
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }

@@ -125,7 +125,7 @@ export function PhoneNumberInput({
         value={countryCode}
         onChange={(event) => selectCountry(event.target.value)}
         disabled={disabled}
-        className="h-10 w-[7.2rem] shrink-0 rounded-l-lg border border-r-0 border-slate-200 bg-white px-2 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+        className="h-11 min-h-[44px] w-[7.2rem] shrink-0 touch-manipulation rounded-l-lg border border-r-0 border-slate-200 bg-white px-2 text-base text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
         {COUNTRIES.map((country) => (
           <option key={country.code} value={country.code}>
@@ -145,7 +145,7 @@ export function PhoneNumberInput({
         onChange={(event) => changeNumber(event.target.value)}
         disabled={disabled}
         icon={<Phone className="h-4 w-4" />}
-        className="min-w-0 rounded-l-none"
+        className="h-11 min-h-[44px] min-w-0 touch-manipulation rounded-l-none text-base sm:text-sm"
       />
     </div>
   );

@@ -18,7 +18,7 @@ const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
 
 export function FarmMap() {
   const { farms } = useFarms();
-  const { weather } = useWeatherStore();
+  const { weather, updateLocation } = useWeatherStore();
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
 
   const selectedFarm = farms.find((f) => f.id === selectedFarmId);
@@ -71,6 +71,7 @@ export function FarmMap() {
         farmMarkers={farmMarkers}
         polygonPoints={activeBoundary}
         onMarkerClick={(id) => setSelectedFarmId(id)}
+        onLocationSelect={({ lat, lng, label }) => updateLocation(lat, lng, label)}
         height="h-[350px]"
       />
     </div>

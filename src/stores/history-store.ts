@@ -19,6 +19,7 @@ export interface DiseaseRecord {
   organicTreatment: string;
   chemicalTreatment: string;
   cropName?: string;
+  cropId?: string;
 }
 
 export interface PlantIDRecord {
@@ -111,6 +112,7 @@ function compactDiseaseRecord(value: unknown): DiseaseRecord | null {
     organicTreatment: compactText(record.organicTreatment),
     chemicalTreatment: compactText(record.chemicalTreatment),
     cropName: compactOptionalText(record.cropName, 160),
+    cropId: compactOptionalText(record.cropId, 100),
   };
 }
 

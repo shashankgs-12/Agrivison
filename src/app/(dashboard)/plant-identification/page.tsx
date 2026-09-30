@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   Upload,
@@ -18,6 +18,8 @@ import {
   FileText,
   ShieldAlert,
   RefreshCw,
+  CircleHelp,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -44,11 +46,21 @@ export default function PlantIdentificationPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { preferences, setPreference } = useLanguageStore();
   const { addPlantRecord } = useHistoryStore();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (!showHelp) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowHelp(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [showHelp]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -200,13 +212,82 @@ export default function PlantIdentificationPage() {
             Identify any crop or plant species with full agronomic recommendations
           </p>
         </div>
-        <Link href="/plant-identification/history">
-          <Button variant="outline" size="sm">
-            <History className="h-4 w-4 mr-1" />
-            ID History
+        <div className="flex shrink-0 items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowHelp(true)} aria-label="Plant ID and crop options help">
+            <CircleHelp className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Help</span>
           </Button>
-        </Link>
+          <Link href="/plant-identification/history">
+            <Button variant="outline" size="sm">
+              <History className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">ID History</span>
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setShowHelp(false); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plant-id-help-title"
+            className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-t-2xl border border-slate-700 bg-slate-950 p-5 text-white shadow-2xl sm:rounded-2xl sm:p-6"
+          >
+            <div className="sticky top-0 -mx-5 -mt-5 mb-4 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">Farmer’s quick guide</p>
+                <h2 id="plant-id-help-title" className="mt-1 text-lg font-bold">Plant ID and crop options</h2>
+              </div>
+              <button type="button" onClick={() => setShowHelp(false)} aria-label="Close help" className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-5 text-sm leading-6 text-slate-300">Use these fields to identify a plant and keep its farm record useful throughout the growing season.</p>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-emerald-300"><Sprout className="h-4 w-4" /> Plant identification</h3>
+                {[
+                  ["Take Photo / Upload Image", "Use a clear, close photo of leaves, fruit, flowers, or the whole plant. For example, photograph a leaf in daylight without covering its spots."],
+                  ["Plant Info Language", "Choose the language you want the identification and care guidance written in."],
+                  ["Identify Plant with AI", "Starts an image analysis. Keep in mind that a photo-based suggestion is a guide; check uncertain results with a local agriculture expert."],
+                  ["Confidence", "How sure the model is about the identification. A lower number means you should compare more photos or ask an expert."],
+                  ["Scientific name / Family", "The plant’s formal botanical name and its related plant group; useful when common names differ by region."],
+                  ["Visible characteristics", "What the photo appears to show, such as leaf shape, stem, flower, or color."],
+                  ["Care, soil, water, sunlight, diseases", "General plant guidance from the analysis. Match it to your local season and soil; the AI may not know your exact field conditions."],
+                ].map(([title, description]) => (
+                  <div key={title} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+                    <h4 className="text-xs font-bold text-white">{title}</h4>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">{description}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-emerald-300"><BookOpen className="h-4 w-4" /> Crop management</h3>
+                {[
+                  ["Farm, crop and variety", "Select the land where the crop is growing. Add a variety (for example, Sona Masuri rice) when you know it."],
+                  ["Planting / sowing date", "The date seed was sown or the young plant was established in the field. Crop age and reminders are based on this date."],
+                  ["Annual or perennial", "Annual crops are generally harvested within one growing cycle. Perennials such as coconut or coffee keep growing and producing for multiple years."],
+                  ["Establishment and maturity periods", "For a perennial, the establishment period is when it is settling in after planting; maturity is the expected time until regular production begins."],
+                  ["First and recurring harvest", "For a perennial, optionally enter the first expected harvest and how often harvests usually recur. These are planning estimates, not a crop end date."],
+                  ["Growth stage and crop age", "Stage describes current development (such as seedling or flowering). Age is calculated from the planting date."],
+                  ["Area and water need", "Enter the portion of the farm planted with this crop and its general water demand. This is not a soil-moisture measurement."],
+                  ["Care reminder intervals", "Choose how often to review irrigation, nutrients, disease, soil, pruning, and harvest. A reminder means ‘check’; it does not mean automatically apply anything."],
+                ].map(([title, description]) => (
+                  <div key={title} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+                    <h4 className="text-xs font-bold text-white">{title}</h4>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">{description}</p>
+                  </div>
+                ))}
+                <Link href="/crops" onClick={() => setShowHelp(false)} className="inline-flex min-h-10 items-center rounded-lg px-1 text-sm font-bold text-emerald-300 hover:text-emerald-200">Open Crop Management →</Link>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Language Selector */}
       <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-center justify-between dark:bg-emerald-950/30 dark:border-emerald-800">
