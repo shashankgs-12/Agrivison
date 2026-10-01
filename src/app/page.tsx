@@ -17,7 +17,6 @@ import {
   Star,
   Crown,
   Smartphone,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -207,13 +206,6 @@ export default function HomePage() {
             >
               Start Free
               <ArrowRight className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/dashboard"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 text-base font-bold bg-white text-slate-800 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all shadow-sm dark:bg-slate-900 dark:text-white dark:border-slate-800 dark:hover:bg-slate-800"
-            >
-              View Demo
-              <ChevronRight className="h-5 w-5" />
             </Link>
           </div>
 
