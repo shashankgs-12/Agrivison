@@ -133,7 +133,9 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
         const invalidFields = payload.fields?.length
           ? ` (${payload.fields.map((field) => field.split(".").at(-1)?.replace(/([A-Z])/g, " $1").toLowerCase() ?? field).join(", ")})`
           : "";
-        throw new Error(response.status === 400 ? (payload.error || `${copy.inputError}${invalidFields}`) : copy.tryAgainNetwork);
+        throw new Error(response.status === 400
+          ? (payload.error || `${copy.inputError}${invalidFields}`)
+          : (payload.error || copy.tryAgainNetwork));
       }
       setMissingInputs(payload.recommendation.missingData);
       setRecommendation(payload.recommendation);

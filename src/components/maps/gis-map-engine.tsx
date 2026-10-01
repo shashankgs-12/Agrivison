@@ -33,6 +33,7 @@ export interface GISMapEngineProps {
   polygonPoints?: [number, number][];
   liveTrackPoints?: [number, number][];
   userLocation?: { lat: number; lng: number; accuracy?: number } | null;
+  fitBoundaryToBounds?: boolean;
   onMapClick?: (coords: { lat: number; lng: number }) => void;
   onMarkerClick?: (farmId: string) => void;
   onLocationSelect?: (location: { lat: number; lng: number; label: string; accuracy?: number }) => void;
@@ -42,6 +43,18 @@ export interface GISMapEngineProps {
 }
 
 type LocationResult = { lat: number; lng: number; label: string };
+type MapFocusTarget = { lat: number; lng: number; zoom: number };
+type MapTilerGeocodingResponse = {
+  features?: Array<{
+    center?: unknown;
+    place_name?: unknown;
+    relevance?: unknown;
+  }>;
+};
+type MapMarker = NonNullable<GISMapEngineProps["farmMarkers"]>[number];
+
+const EMPTY_MARKERS: MapMarker[] = [];
+const EMPTY_POINTS: [number, number][] = [];
 
 const MAPTILER_STYLES: Record<MapMode, { id: string; format: "jpg" | "png" }> = {
   satellite: { id: "satellite-v4", format: "jpg" },
@@ -58,6 +71,86 @@ function tileUrl(mode: MapMode, key: string) {
   return `https://api.maptiler.com/maps/${style.id}/256/{z}/{x}/{y}.${style.format}?key=${encodeURIComponent(key)}`;
 }
 
+function focusMap(
+  map: import("leaflet").Map,
+  interactedRef: React.MutableRefObject<boolean>,
+  targetRef: React.MutableRefObject<MapFocusTarget | null>,
+  lat: number,
+  lng: number,
+  zoom: number
+) {
+  const current = map.getCenter();
+  if (Math.hypot(current.lat - lat, current.lng - lng) < 0.00005 && map.getZoom() === zoom) {
+    interactedRef.current = false;
+    targetRef.current = null;
+    return;
+  }
+  const target = { lat, lng, zoom };
+  targetRef.current = target;
+  interactedRef.current = true;
+  map.once("moveend", () => {
+    if (targetRef.current === target) {
+      targetRef.current = null;
+      interactedRef.current = false;
+    }
+  });
+  map.flyTo([lat, lng], zoom, { duration: 0.45 });
+}
+
+async function searchMapTilerPlaces(
+  query: string,
+  center: { lat: number; lng: number },
+  signal: AbortSignal
+): Promise<LocationResult[]> {
+  const key = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+  if (!key) throw new Error("Place search is not configured. Check the map service configuration.");
+
+  const url = new URL(`https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json`);
+  url.searchParams.set("key", key);
+  url.searchParams.set("autocomplete", "true");
+  url.searchParams.set("fuzzyMatch", "true");
+  url.searchParams.set("country", "in");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("limit", "8");
+  url.searchParams.set("types", "locality,municipality,place,neighbourhood,county,address");
+  url.searchParams.set("proximity", `${center.lng},${center.lat}`);
+
+  const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) });
+  if (!response.ok) {
+    throw new Error(response.status === 403
+      ? "Map place search is unavailable for this key. Check its Geocoding API access."
+      : "Place search is temporarily unavailable. Try again.");
+  }
+
+  const payload = await response.json() as MapTilerGeocodingResponse;
+  const seen = new Set<string>();
+  return (payload.features ?? [])
+    .filter((feature) => Array.isArray(feature.center) && feature.center.length >= 2 && typeof feature.place_name === "string")
+    .map((feature) => ({
+      lng: Number((feature.center as unknown[])[0]),
+      lat: Number((feature.center as unknown[])[1]),
+      label: (feature.place_name as string).trim(),
+      relevance: typeof feature.relevance === "number" ? feature.relevance : 0,
+    }))
+    .filter((result) => Number.isFinite(result.lat) && Math.abs(result.lat) <= 90 && Number.isFinite(result.lng) && Math.abs(result.lng) <= 180 && result.label)
+    .sort((left, right) => right.relevance - left.relevance)
+    .filter((result) => {
+      const normalized = result.label.normalize("NFKC").toLocaleLowerCase();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .slice(0, 8)
+    .map(({ lat, lng, label }) => ({ lat, lng, label }));
+}
+
+async function searchNominatimPlaces(query: string, signal: AbortSignal): Promise<LocationResult[]> {
+  const response = await fetch(`/api/maps?q=${encodeURIComponent(query)}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) });
+  const payload = await response.json() as { results?: LocationResult[]; error?: string };
+  if (!response.ok) throw new Error(payload.error || "Place search is temporarily unavailable. Try again.");
+  return payload.results ?? [];
+}
+
 export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
   center = { lat: 12.9716, lng: 77.5946 },
   zoom = 15,
@@ -66,10 +159,11 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
   showLocationBadge = true,
   interactive = true,
   isReadOnly = false,
-  farmMarkers = [],
-  polygonPoints = [],
-  liveTrackPoints = [],
+  farmMarkers = EMPTY_MARKERS,
+  polygonPoints = EMPTY_POINTS,
+  liveTrackPoints = EMPTY_POINTS,
   userLocation = null,
+  fitBoundaryToBounds = false,
   onMapClick,
   onMarkerClick,
   onLocationSelect,
@@ -85,12 +179,21 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
   const drawingLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const trackLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const locationLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const trackPolylineRef = useRef<import("leaflet").Polyline | null>(null);
+  const trackStartMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
+  const trackEndMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
   const searchMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
   const gpsWatchRef = useRef<number | null>(null);
   const gpsTimeoutRef = useRef<number | null>(null);
   const bestFixRef = useRef<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const selectedSearchLabelRef = useRef("");
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const autocompleteTimerRef = useRef<number | null>(null);
   const interactedRef = useRef(false);
+  const mapFocusTargetRef = useRef<MapFocusTarget | null>(null);
+  const detectedLocationRef = useRef(userLocation);
   const propsRef = useRef({ center, zoom, interactive, isReadOnly, farmMarkers, polygonPoints, liveTrackPoints, userLocation, onMapClick, onMarkerClick, onLocationSelect });
   propsRef.current = { center, zoom, interactive, isReadOnly, farmMarkers, polygonPoints, liveTrackPoints, userLocation, onMapClick, onMarkerClick, onLocationSelect };
 
@@ -106,6 +209,7 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [detectedLocation, setDetectedLocation] = useState(userLocation);
+  detectedLocationRef.current = detectedLocation;
 
   useEffect(() => setCurrentMode(initialMapMode), [initialMapMode]);
   useEffect(() => setDetectedLocation(userLocation), [userLocation]);
@@ -121,7 +225,7 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
     }
   }, []);
 
-  const renderOverlays = useCallback(() => {
+  const renderFarmMarkers = useCallback(() => {
     const L = leafletRef.current;
     const map = mapRef.current;
     if (!L || !map) return;
@@ -144,50 +248,80 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
       popup.append(name, details);
       marker.bindPopup(popup);
       marker.on("click", () => {
-        interactedRef.current = false;
-        map.panTo([farm.lat, farm.lng]);
-        if (map.getZoom() < 14) map.setZoom(14);
+        focusMap(map, interactedRef, mapFocusTargetRef, farm.lat, farm.lng, Math.max(map.getZoom(), 14));
         propsRef.current.onMarkerClick?.(farm.id);
       });
       markerLayer?.addLayer(marker);
     }
+  }, []);
 
+  const renderBoundary = useCallback(() => {
+    const L = leafletRef.current;
+    if (!L || !mapRef.current) return;
     const drawingLayer = drawingLayerRef.current;
     drawingLayer?.clearLayers();
     const points = propsRef.current.polygonPoints.map(([lat, lng]) => [lat, lng] as [number, number]);
-    points.forEach((point) => L.circleMarker(point, {
-      radius: 5,
-      color: "#059669",
-      weight: 2,
-      fillColor: "#10b981",
-      fillOpacity: 0.95,
-      interactive: false,
-    }).addTo(drawingLayer!));
+    if (!propsRef.current.isReadOnly && points.length <= 40) {
+      points.forEach((point) => L.circleMarker(point, {
+        radius: 5,
+        color: "#059669",
+        weight: 2,
+        fillColor: "#10b981",
+        fillOpacity: 0.95,
+        interactive: false,
+      }).addTo(drawingLayer!));
+    }
     if (points.length === 2) {
       L.polyline(points, { color: "#10b981", weight: 3, opacity: 1, dashArray: "6 6" }).addTo(drawingLayer!);
     } else if (points.length >= 3) {
       L.polygon(points, { color: "#059669", weight: 3, opacity: 1, fillColor: "#10b981", fillOpacity: 0.35 }).addTo(drawingLayer!);
     }
+  }, []);
 
+  const renderTrack = useCallback(() => {
+    const L = leafletRef.current;
+    if (!L || !mapRef.current) return;
     const trackLayer = trackLayerRef.current;
-    trackLayer?.clearLayers();
     const track = propsRef.current.liveTrackPoints;
-    if (track.length) {
-      L.polyline(track, { color: "#0284c7", weight: 4, opacity: 0.95 }).addTo(trackLayer!);
-      L.circleMarker(track[0], { radius: 6, color: "#0284c7", weight: 2, fillColor: "#38bdf8", fillOpacity: 1 }).addTo(trackLayer!);
-      if (track.length > 1) L.circleMarker(track[track.length - 1], { radius: 7, color: "#2563eb", weight: 2, fillColor: "#60a5fa", fillOpacity: 1 }).addTo(trackLayer!);
+    if (!track.length) {
+      trackLayer?.clearLayers();
+      trackPolylineRef.current = null;
+      trackStartMarkerRef.current = null;
+      trackEndMarkerRef.current = null;
+      return;
     }
+    if (!trackPolylineRef.current) {
+      trackPolylineRef.current = L.polyline(track, { color: "#0284c7", weight: 4, opacity: 0.95 }).addTo(trackLayer!);
+      trackStartMarkerRef.current = L.circleMarker(track[0], { radius: 6, color: "#0284c7", weight: 2, fillColor: "#38bdf8", fillOpacity: 1 }).addTo(trackLayer!);
+    } else {
+      trackPolylineRef.current.setLatLngs(track);
+      trackStartMarkerRef.current?.setLatLng(track[0]);
+    }
+    if (track.length > 1) {
+      if (!trackEndMarkerRef.current) {
+        trackEndMarkerRef.current = L.circleMarker(track[track.length - 1], { radius: 7, color: "#2563eb", weight: 2, fillColor: "#60a5fa", fillOpacity: 1 }).addTo(trackLayer!);
+      } else {
+        trackEndMarkerRef.current.setLatLng(track[track.length - 1]);
+      }
+    } else if (trackEndMarkerRef.current) {
+      trackLayer?.removeLayer(trackEndMarkerRef.current);
+      trackEndMarkerRef.current = null;
+    }
+  }, []);
 
+  const renderLocation = useCallback(() => {
+    const L = leafletRef.current;
+    if (!L || !mapRef.current) return;
     const locationLayer = locationLayerRef.current;
     locationLayer?.clearLayers();
-    const fix = detectedLocation || propsRef.current.userLocation;
+    const fix = detectedLocationRef.current || propsRef.current.userLocation;
     if (fix) {
       L.circleMarker([fix.lat, fix.lng], { radius: 7, color: "#ffffff", weight: 2.5, fillColor: "#2563eb", fillOpacity: 1 }).addTo(locationLayer!);
       if (fix.accuracy && fix.accuracy > 0) {
         L.circle([fix.lat, fix.lng], { radius: fix.accuracy, color: "#3b82f6", weight: 1, opacity: 0.8, fillColor: "#93c5fd", fillOpacity: 0.15, interactive: false }).addTo(locationLayer!);
       }
     }
-  }, [detectedLocation]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,9 +351,18 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
         if (latest.isReadOnly || !latest.interactive) return;
         latest.onMapClick?.({ lat: event.latlng.lat, lng: event.latlng.lng });
       });
-      map.on("dragstart", () => { interactedRef.current = true; });
+      map.on("dragstart", () => {
+        interactedRef.current = true;
+        mapFocusTargetRef.current = null;
+      });
       mapRef.current = map;
-      resizeObserverRef.current = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+      resizeObserverRef.current = new ResizeObserver(() => {
+        if (resizeFrameRef.current !== null) return;
+        resizeFrameRef.current = window.requestAnimationFrame(() => {
+          resizeFrameRef.current = null;
+          map.invalidateSize({ pan: false });
+        });
+      });
       resizeObserverRef.current.observe(containerRef.current);
       setMapReady(true);
     }).catch((error: unknown) => {
@@ -231,6 +374,16 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
     return () => {
       cancelled = true;
       clearGpsRequest();
+      searchAbortRef.current?.abort();
+      searchAbortRef.current = null;
+      if (autocompleteTimerRef.current !== null) {
+        window.clearTimeout(autocompleteTimerRef.current);
+        autocompleteTimerRef.current = null;
+      }
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       mapRef.current?.remove();
@@ -240,6 +393,9 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
       drawingLayerRef.current = null;
       trackLayerRef.current = null;
       locationLayerRef.current = null;
+      trackPolylineRef.current = null;
+      trackStartMarkerRef.current = null;
+      trackEndMarkerRef.current = null;
       tileLayerRef.current = null;
       searchMarkerRef.current = null;
       setMapReady(false);
@@ -270,7 +426,8 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
       attribution: MAPTILER_ATTRIBUTION,
       crossOrigin: true,
       updateWhenIdle: true,
-      keepBuffer: 2,
+      updateWhenZooming: false,
+      keepBuffer: 1,
     });
     layer.once("load", () => {
       setMapLoading(false);
@@ -295,18 +452,38 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
 
   const markerSignature = JSON.stringify(farmMarkers.map(({ id, name, lat, lng, area, status }) => [id, name, lat, lng, area, status]));
   const polygonSignature = JSON.stringify(polygonPoints);
-  const trackSignature = JSON.stringify(liveTrackPoints);
-  useEffect(() => { renderOverlays(); }, [renderOverlays, markerSignature, polygonSignature, trackSignature, mapReady]);
+  const location = detectedLocation || userLocation;
+  const locationSignature = location ? `${location.lat}:${location.lng}:${location.accuracy ?? ""}` : "";
+  useEffect(() => { renderFarmMarkers(); }, [renderFarmMarkers, markerSignature, mapReady]);
+  useEffect(() => { renderBoundary(); }, [renderBoundary, polygonSignature, mapReady]);
+  useEffect(() => { renderTrack(); }, [renderTrack, liveTrackPoints, mapReady]);
+  useEffect(() => { renderLocation(); }, [renderLocation, locationSignature, mapReady]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!fitBoundaryToBounds || !L || !map || polygonPoints.length < 3) return;
+    const bounds = L.latLngBounds(polygonPoints.map(([lat, lng]) => [lat, lng]));
+    if (bounds.isValid()) map.fitBounds(bounds.pad(0.25), { animate: false, maxZoom: 18 });
+  }, [fitBoundaryToBounds, mapReady, polygonPoints]);
 
   const centerLat = center.lat;
   const centerLng = center.lng;
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || interactedRef.current) return;
+    if (!map) return;
+    if (interactedRef.current) {
+      const pendingTarget = mapFocusTargetRef.current;
+      if (!pendingTarget) return;
+      if (Math.hypot(pendingTarget.lat - centerLat, pendingTarget.lng - centerLng) < 0.00005 && pendingTarget.zoom === zoom) return;
+      map.stop();
+      mapFocusTargetRef.current = null;
+      interactedRef.current = false;
+    }
     const current = map.getCenter();
-    if (Math.hypot(current.lat - centerLat, current.lng - centerLng) < 0.00005) return;
-    map.panTo([centerLat, centerLng]);
-    if (map.getZoom() !== zoom) map.setZoom(zoom);
+    const centerChanged = Math.hypot(current.lat - centerLat, current.lng - centerLng) >= 0.00005;
+    if (!centerChanged && map.getZoom() === zoom) return;
+    focusMap(map, interactedRef, mapFocusTargetRef, centerLat, centerLng, zoom);
   }, [centerLat, centerLng, zoom, mapReady]);
 
   useEffect(() => {
@@ -321,8 +498,14 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
     const L = leafletRef.current;
     const map = mapRef.current;
     if (!L || !map) return;
-    interactedRef.current = false;
-    map.flyTo([result.lat, result.lng], Math.max(map.getZoom(), 14), { duration: 0.65 });
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    if (autocompleteTimerRef.current !== null) {
+      window.clearTimeout(autocompleteTimerRef.current);
+      autocompleteTimerRef.current = null;
+    }
+    selectedSearchLabelRef.current = result.label;
+    focusMap(map, interactedRef, mapFocusTargetRef, result.lat, result.lng, Math.max(map.getZoom(), 14));
     // Circle markers render in SVG and do not request Leaflet's default PNG marker assets.
     const marker = L.circleMarker([result.lat, result.lng], {
       radius: 8,
@@ -336,33 +519,97 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
     setSearchQuery(result.label);
     setSearchResults([]);
     setSearchError(null);
+    setSearching(false);
     propsRef.current.onLocationSelect?.(result);
   }, []);
+
+  useEffect(() => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    if (autocompleteTimerRef.current !== null) {
+      window.clearTimeout(autocompleteTimerRef.current);
+      autocompleteTimerRef.current = null;
+    }
+
+    const query = searchQuery.trim();
+    if (query.length < 3 || query === selectedSearchLabelRef.current) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    autocompleteTimerRef.current = window.setTimeout(() => {
+      autocompleteTimerRef.current = null;
+      setSearching(true);
+      void searchMapTilerPlaces(query, { lat: centerLat, lng: centerLng }, controller.signal)
+        .then((results) => {
+          if (controller.signal.aborted) return;
+          setSearchResults(results);
+          setSearchError(results.length ? null : "No matching places found.");
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) {
+            setSearchError(error instanceof Error ? error.message : "Place search is temporarily unavailable. Try again.");
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, 300);
+
+    return () => {
+      if (autocompleteTimerRef.current !== null) {
+        window.clearTimeout(autocompleteTimerRef.current);
+        autocompleteTimerRef.current = null;
+      }
+      controller.abort();
+      if (searchAbortRef.current === controller) searchAbortRef.current = null;
+    };
+  }, [searchQuery, centerLat, centerLng]);
 
   const handleLocationSearch = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    if (query.length < 2) {
-      setSearchError("Enter at least 2 characters to search.");
+    if (query.length < 3) {
+      setSearchError("Enter at least 3 characters to search places.");
       return;
     }
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    if (autocompleteTimerRef.current !== null) {
+      window.clearTimeout(autocompleteTimerRef.current);
+      autocompleteTimerRef.current = null;
+    }
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     setSearching(true);
     setSearchError(null);
     setSearchResults([]);
     searchMarkerRef.current?.remove();
     try {
-      const response = await fetch(`/api/maps?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(10000) });
-      const payload = await response.json() as { results?: LocationResult[]; error?: string };
-      if (!response.ok) throw new Error(payload.error || "Location search failed. Try again.");
-      if (!payload.results?.length) throw new Error("No matching locations found.");
-      if (payload.results.length === 1) selectSearchResult(payload.results[0]);
-      else setSearchResults(payload.results);
+      let results: LocationResult[] = [];
+      try {
+        results = await searchMapTilerPlaces(query, { lat: centerLat, lng: centerLng }, controller.signal);
+      } catch (mapTilerError) {
+        if (controller.signal.aborted) throw mapTilerError;
+      }
+      if (results.length === 0) results = await searchNominatimPlaces(query, controller.signal);
+      if (!results.length) throw new Error("No matching places found.");
+      if (results.length === 1) selectSearchResult(results[0]);
+      else setSearchResults(results);
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "Location search failed. Check your connection and retry.");
+      if (!controller.signal.aborted) {
+        setSearchError(error instanceof Error ? error.message : "Place search is temporarily unavailable. Try again.");
+      }
     } finally {
-      setSearching(false);
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+        setSearching(false);
+      }
     }
-  }, [searchQuery, selectSearchResult]);
+  }, [searchQuery, centerLat, centerLng, selectSearchResult]);
 
   const refreshLiveLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -381,9 +628,8 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
         return;
       }
       setDetectedLocation(fix);
-      interactedRef.current = false;
       const map = mapRef.current;
-      if (map) map.flyTo([fix.lat, fix.lng], Math.max(map.getZoom(), 15), { duration: 0.65 });
+      if (map) focusMap(map, interactedRef, mapFocusTargetRef, fix.lat, fix.lng, Math.max(map.getZoom(), 15));
       propsRef.current.onLocationSelect?.({ ...fix, label: "Current location" });
       setLocating(false);
     };
@@ -408,9 +654,17 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
   }, [clearGpsRequest]);
 
   const clearSearch = () => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    if (autocompleteTimerRef.current !== null) {
+      window.clearTimeout(autocompleteTimerRef.current);
+      autocompleteTimerRef.current = null;
+    }
+    selectedSearchLabelRef.current = "";
     setSearchQuery("");
     setSearchResults([]);
     setSearchError(null);
+    setSearching(false);
     searchMarkerRef.current?.remove();
     searchMarkerRef.current = null;
   };
@@ -422,13 +676,14 @@ export const GISMapEngine: React.FC<GISMapEngineProps> = React.memo(({
       {showNavigationControls && <div className={`absolute left-3 top-3 z-[1001] ${showControls ? "w-[min(22rem,calc(100%-18rem))] max-[639px]:w-[min(22rem,calc(100%-1.5rem))]" : "w-[min(22rem,calc(100%-1.5rem))]"}`}>
         <form onSubmit={handleLocationSearch} onClick={(event) => event.stopPropagation()} className="liquid-glass-panel flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900/85">
           <Search className="ml-1 h-4 w-4 shrink-0 text-slate-500" />
-          <input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSearchError(null); }} placeholder="Search a place or address" aria-label="Search map location" className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-xs text-slate-900 outline-none placeholder:text-slate-500 dark:text-white" />
+          <input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSearchResults([]); setSearchError(null); }} placeholder="Search a village, town, or city" aria-label="Search map location" role="combobox" aria-autocomplete="list" aria-expanded={searchResults.length > 0} aria-controls="map-place-suggestions" autoComplete="off" className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-xs text-slate-900 outline-none placeholder:text-slate-500 dark:text-white" />
           {searchQuery && <button type="button" onClick={clearSearch} aria-label="Clear map search" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-3.5 w-3.5" /></button>}
           <button type="submit" disabled={searching} aria-label="Search map" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white disabled:opacity-60">{searching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}</button>
         </form>
-        {(searchError || searchResults.length > 0) && <div className="liquid-glass-panel mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/95" onClick={(event) => event.stopPropagation()}>
+        {searching && searchQuery.trim().length >= 3 && searchResults.length === 0 && <p role="status" className="mt-1 rounded-lg bg-slate-950/90 px-3 py-2 text-xs text-slate-200">Searching nearby villages, towns, and cities…</p>}
+        {(searchError || searchResults.length > 0) && <div id="map-place-suggestions" role="listbox" aria-label="Place suggestions" className="liquid-glass-panel mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/95" onClick={(event) => event.stopPropagation()}>
           {searchError && <p role="status" className="px-3 py-2 text-xs text-rose-600 dark:text-rose-300">{searchError}</p>}
-          {searchResults.map((result, index) => <button key={`${result.lat}-${result.lng}-${index}`} type="button" onClick={() => selectSearchResult(result)} className="block min-h-11 w-full border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-700 last:border-0 hover:bg-emerald-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"><MapPin className="mr-1 inline h-3 w-3 text-emerald-600" />{result.label}</button>)}
+          {searchResults.map((result) => <button key={`${result.lat}-${result.lng}-${result.label}`} role="option" aria-selected="false" type="button" onClick={() => selectSearchResult(result)} className="block min-h-11 w-full border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-700 last:border-0 hover:bg-emerald-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"><MapPin className="mr-1 inline h-3 w-3 text-emerald-600" />{result.label}</button>)}
         </div>}
         {locationError && <p role="status" className="mt-1 rounded-lg bg-rose-950/90 px-3 py-2 text-xs text-rose-200">{locationError}</p>}
       </div>}

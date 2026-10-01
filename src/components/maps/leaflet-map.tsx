@@ -26,6 +26,8 @@ export interface LeafletMapProps {
   onLocationSelect?: (coords: { lat: number; lng: number; address: string }) => void;
   onAreaCalculated?: (areaAcres: number) => void;
   farmMarkers?: Array<{ id: string; name: string; lat: number; lng: number; area: number }>;
+  boundaryPoints?: [number, number][];
+  fitBoundaryToBounds?: boolean;
 }
 
 export default function InteractiveFarmMap({
@@ -36,6 +38,8 @@ export default function InteractiveFarmMap({
   onLocationSelect,
   onAreaCalculated,
   farmMarkers = [],
+  boundaryPoints,
+  fitBoundaryToBounds = false,
 }: LeafletMapProps) {
   const { updateLocation } = useWeatherStore();
   const [center, setCenter] = useState<{ lat: number; lng: number }>({
@@ -89,7 +93,8 @@ export default function InteractiveFarmMap({
         interactive={interactive}
         isReadOnly={isReadOnly}
         farmMarkers={farmMarkers}
-        polygonPoints={polygonPoints}
+        polygonPoints={boundaryPoints?.length ? boundaryPoints : polygonPoints}
+        fitBoundaryToBounds={fitBoundaryToBounds}
         userLocation={userLocation}
         onMapClick={handleMapClick}
         onLocationSelect={async ({ lat, lng, label, accuracy }) => {

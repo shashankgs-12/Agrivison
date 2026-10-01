@@ -10,9 +10,9 @@ export const GEMINI_IMAGE_MODELS = [
   "gemini-3.8-flash",
 ] as const;
 
-// Keep text chat on its existing preferred model while sharing the bounded
-// transient-error policy. Image analysis uses the explicit fast/fallback pair above.
-const GEMINI_TEXT_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash"] as const;
+// Keep text generation on stable models recommended for new Gemini API projects.
+// Production logs reported the previous text pair as unavailable to this project.
+const GEMINI_TEXT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"] as const;
 const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
 const MAX_PROVIDER_ERROR_CHARS = 4_000;
 

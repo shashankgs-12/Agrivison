@@ -206,18 +206,23 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
       )}
 
       {/* Metadata Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div className="p-4 bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Total Area</span>
-          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.area} Acres</p>
+          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.area.toFixed(2)} Acres</p>
+          {farm.areaHectares != null && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{farm.areaHectares.toFixed(2)} Hectares</p>}
+        </div>
+        <div className="p-4 bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
+          <span className="text-[10px] text-slate-400 uppercase font-bold">Perimeter</span>
+          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.perimeterMeters != null ? `${farm.perimeterMeters.toFixed(1)} m` : "Not recorded"}</p>
         </div>
         <div className="p-4 bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Soil Type</span>
-          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.soilType || "Loamy Soil"}</p>
+          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.soilType || "Not recorded"}</p>
         </div>
         <div className="p-4 bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Water Source</span>
-          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.waterSource || "Borewell"}</p>
+          <p className="text-base font-bold text-slate-900 mt-1 dark:text-white">{farm.waterSource || "Not recorded"}</p>
         </div>
         <div className="p-4 bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Registered Plants</span>
@@ -230,10 +235,13 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <MapPin className="h-4 w-4 text-emerald-600" /> GPS Map & Location Coordinates
         </h3>
+        {(!farm.boundary || farm.boundary.length < 3) && <p role="status" className="rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-100">This farm record has no saved field outline, so the map can only show its GPS point. Re-survey and save the field boundary to display its shape here.</p>}
         <InteractiveFarmMap
           initialLat={farm.coordinates?.lat || 12.9716}
           initialLng={farm.coordinates?.lng || 77.5946}
           farmMarkers={[{ id: farm.id, name: farm.name, lat: farm.coordinates?.lat || 12.9716, lng: farm.coordinates?.lng || 77.5946, area: farm.area }]}
+          boundaryPoints={farm.boundary}
+          fitBoundaryToBounds
           interactive={false}
         />
       </div>
