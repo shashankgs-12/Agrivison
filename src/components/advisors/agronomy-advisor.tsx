@@ -16,12 +16,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCrops } from "@/hooks/use-crops";
 import { useFarms } from "@/hooks/use-farms";
-import { useDiseaseRecords } from "@/hooks/use-history";
 import { getCropLifecycleInfo } from "@/lib/crops/lifecycle";
 import { useLanguage } from "@/hooks/use-language";
 import { getUiText } from "@/lib/i18n/localization";
 import type { DetailedWeatherData } from "@/lib/weather/api";
-import type { Crop } from "@/stores/crop-store";
 
 type AdvisorType = "irrigation" | "fertilizer";
 type AdvisorWeather = Pick<DetailedWeatherData,
@@ -52,36 +50,6 @@ type FertilizerRecommendation = {
 
 type Recommendation = IrrigationRecommendation | FertilizerRecommendation;
 
-function normalizedName(value: string) {
-  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
-}
-
-function getDiseaseContext(crop: Crop, records: ReturnType<typeof useDiseaseRecords>["diseaseRecords"]) {
-  return records
-    .filter((record) => record.cropId === crop.id || (!record.cropId && record.cropName && normalizedName(record.cropName) === normalizedName(crop.name)))
-    .sort((first, second) => Date.parse(second.timestamp) - Date.parse(first.timestamp))
-    .slice(0, 5);
-}
-
-function getMissingInputs(crop: Crop, farm: ReturnType<typeof useFarms>["farms"][number], weather: AdvisorWeather | null, diseaseCount: number) {
-  const missing: string[] = [];
-  if (!weather) missing.push("Live weather and rainfall forecast for this farm are unavailable.");
-  if (!farm.soilType && !crop.soilType) missing.push("Soil type or a recent soil test is not recorded.");
-  if (!weather || weather.source !== "live") missing.push("Live field weather and rainfall forecast are unavailable.");
-  else {
-    if (weather.soilMoisture === null) missing.push("The weather provider has no soil-moisture estimate for this location, and no field sensor reading is stored.");
-    else missing.push("No on-field soil-moisture sensor reading or crop/soil-specific moisture threshold is stored; the provider's value is a modelled volumetric estimate.");
-    if (weather.daily.length < 3) missing.push("A complete multi-day rainfall forecast is unavailable.");
-  }
-  missing.push("No recent irrigation log is stored for this crop.");
-  missing.push("No previous fertilizer application log is stored for this crop.");
-  if (diseaseCount === 0 && (!crop.diseaseStatus || normalizedName(crop.diseaseStatus) === "healthy")) {
-    missing.push("No disease scan is linked to this crop.");
-  }
-  if (!farm.location.trim()) missing.push("A farm location description is not recorded.");
-  return missing;
-}
-
 interface AgronomyAdvisorProps {
   type: AdvisorType;
 }
@@ -89,9 +57,8 @@ interface AgronomyAdvisorProps {
 export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
   const { language } = useLanguage();
   const copy = getUiText(language).advisor;
-  const { farms } = useFarms();
-  const { crops } = useCrops();
-  const { diseaseRecords } = useDiseaseRecords();
+  const { farms, loading: farmsLoading, error: farmsError } = useFarms();
+  const { crops, loading: cropsLoading, error: cropsError } = useCrops();
   const [selectedCropId, setSelectedCropId] = useState(() => crops[0]?.id ?? "");
   const [fieldWeather, setFieldWeather] = useState<AdvisorWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
@@ -104,7 +71,6 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
   const crop = crops.find((item) => item.id === selectedCropId) ?? crops[0] ?? null;
   const farm = crop ? farms.find((item) => item.id === crop.farmId) ?? null : null;
   const lifecycle = crop ? getCropLifecycleInfo(crop) : null;
-  const linkedDiseaseRecords = crop ? getDiseaseContext(crop, diseaseRecords) : [];
   const title = type === "irrigation" ? copy.irrigation : copy.fertilizer;
   const Icon = type === "irrigation" ? Droplets : FlaskConical;
 
@@ -155,64 +121,11 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
     setLoading(true);
     setError(null);
     setRecommendation(null);
-    let weather = fieldWeather;
-    if (!weather || Math.abs(weather.latitude - farm.coordinates.lat) > 0.02 || Math.abs(weather.longitude - farm.coordinates.lng) > 0.02) {
-      weather = await loadFieldWeather(farm);
-    }
-
-    const records = getDiseaseContext(crop, diseaseRecords);
-    const gaps = getMissingInputs(crop, farm, weather, records.length);
-    const context = {
-      crop: {
-        id: crop.id,
-        name: crop.name,
-        variety: crop.variety || null,
-        lifecycleType: crop.lifecycleType ?? "ANNUAL",
-        plantingDate: crop.sowingDate,
-        ageMonths: lifecycle.ageMonths,
-        growthStage: lifecycle.stage,
-        waterNeed: crop.waterNeed,
-        areaAcres: crop.area,
-      },
-      farm: {
-        name: farm.name,
-        location: farm.location,
-        latitude: farm.coordinates.lat,
-        longitude: farm.coordinates.lng,
-        soilType: crop.soilType || farm.soilType || null,
-        waterSource: farm.waterSource || null,
-      },
-      weather: weather?.source === "live" ? {
-        temperatureC: weather.temperature,
-        humidityPercent: weather.humidity,
-        windKmh: weather.windSpeed,
-        rainfallProbabilityPercent: weather.rainProbability,
-        condition: weather.condition,
-        modelledSoilMoistureM3PerM3: weather.soilMoisture,
-        forecast: weather.daily.slice(0, 7).map((day) => ({
-          date: day.date,
-          precipitationMm: day.precipitation,
-          rainProbabilityPercent: day.rainProb,
-        })),
-      } : null,
-      diseaseRecords: records.map((record) => ({
-        diseaseName: record.diseaseName,
-        severity: record.severity,
-        confidence: record.confidence,
-        date: record.timestamp,
-      })),
-      recordedDiseaseStatus: crop.diseaseStatus && normalizedName(crop.diseaseStatus) !== "healthy" ? crop.diseaseStatus : null,
-      soilTestAvailable: false,
-      irrigationHistoryAvailable: false,
-      fertilizerHistoryAvailable: false,
-      missingInputs: gaps,
-    };
-
     try {
       const response = await fetch("/api/ai/agronomy-advice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, context, language }),
+        body: JSON.stringify({ type, cropId: crop.id, language }),
         signal: AbortSignal.timeout(60_000),
       });
       const payload = await response.json() as { success?: boolean; recommendation?: Recommendation; error?: string; fields?: string[] };
@@ -220,7 +133,7 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
         const invalidFields = payload.fields?.length
           ? ` (${payload.fields.map((field) => field.split(".").at(-1)?.replace(/([A-Z])/g, " $1").toLowerCase() ?? field).join(", ")})`
           : "";
-        throw new Error(response.status === 400 ? `${copy.inputError}${invalidFields}` : copy.tryAgainNetwork);
+        throw new Error(response.status === 400 ? (payload.error || `${copy.inputError}${invalidFields}`) : copy.tryAgainNetwork);
       }
       setMissingInputs(payload.recommendation.missingData);
       setRecommendation(payload.recommendation);
@@ -234,6 +147,14 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
       setLoading(false);
     }
   };
+
+  if (farmsLoading || cropsLoading) {
+    return <div role="status" className="mx-auto max-w-4xl py-12 text-center text-sm text-slate-400">Loading your farms and crops…</div>;
+  }
+
+  if (farmsError || cropsError) {
+    return <p role="alert" className="mx-auto max-w-4xl rounded-xl border border-rose-800 bg-rose-950/30 p-4 text-sm text-rose-200">{farmsError || cropsError}</p>;
+  }
 
   if (farms.length === 0 || crops.length === 0) {
     const needsFarm = farms.length === 0;
@@ -320,11 +241,7 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
         {type === "fertilizer" && (
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
             <p className="font-bold text-white">{copy.diseaseContext}</p>
-            {linkedDiseaseRecords.length > 0 ? (
-              <ul className="mt-2 space-y-1">{linkedDiseaseRecords.map((record) => <li key={record.id}>{record.diseaseName} · {record.severity} severity · {new Date(record.timestamp).toLocaleDateString()}</li>)}</ul>
-            ) : (
-              <p className="mt-1">{copy.noDisease} {crop.name}. To link a future scan, select this crop on the Disease Scanner before scanning.</p>
-            )}
+            <p className="mt-1">{crop.diseaseStatus || `${copy.noDisease} ${crop.name}. Disease scan history is not stored with this crop record.`}</p>
           </div>
         )}
 

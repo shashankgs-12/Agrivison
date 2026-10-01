@@ -14,43 +14,39 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCrops } from "@/hooks/use-crops";
 import { useFarms } from "@/hooks/use-farms";
-import { useAuthStore } from "@/stores/auth-store";
 import { Crop } from "@/stores/crop-store";
 import { CropLifecycleFields, type CropLifecycleFormValues } from "@/components/crops/crop-lifecycle-fields";
-import { getCropCareReminders, getCropDateAfterDays, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
+import { getCropCareReminders, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
 import { useLanguage } from "@/hooks/use-language";
 import { getCropHelp, getUiText } from "@/lib/i18n/localization";
 
 type CropRegistrationData = Omit<ReturnType<typeof newCropFormData>, keyof CropLifecycleFormValues> & CropLifecycleFormValues;
 
-function newCropFormData(area = 5) {
+function newCropFormData() {
   return {
     name: "",
     variety: "",
     farmId: "",
-    sowingDate: getCropDateAfterDays(0),
+    sowingDate: "",
     lifecycleType: "ANNUAL" as const,
-    expectedHarvest: getCropDateAfterDays(120),
+    expectedHarvest: "",
     establishmentPeriodMonths: 12,
     maturityPeriodMonths: 36,
     firstExpectedHarvest: "",
     harvestIntervalMonths: 12,
     maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
-    growthStage: "Seedling" as Crop["growthStage"],
-    area,
-    waterNeed: "Medium" as Crop["waterNeed"],
-    health: "Excellent" as Crop["health"],
-    diseaseStatus: "Healthy",
+    growthStage: "" as Crop["growthStage"],
+    area: 0,
+    waterNeed: "" as Crop["waterNeed"],
   };
 }
 
 export default function CropsPage() {
-  const { user } = useAuthStore();
   const { language } = useLanguage();
   const copy = getUiText(language);
   const cropFieldHelp = getCropHelp(language);
-  const { crops, addCrop, deleteCrop } = useCrops();
-  const { farms } = useFarms();
+  const { crops, addCrop, deleteCrop, error: cropLoadError } = useCrops();
+  const { farms, error: farmLoadError } = useFarms();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCropHelpOpen, setIsCropHelpOpen] = useState(false);
@@ -62,10 +58,15 @@ export default function CropsPage() {
   const [formData, setFormData] = useState<CropRegistrationData>(() => newCropFormData());
   const selectedFarm = farms.find((farm) => farm.id === formData.farmId);
 
-  const handleCreateCrop = (e: React.FormEvent) => {
+  const handleCreateCrop = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !selectedFarm) {
       setFormError("Choose a farm and enter a crop name.");
+      return;
+    }
+
+    if (!formData.sowingDate || !formData.growthStage || !formData.waterNeed) {
+      setFormError("Enter the planting date, growth stage, and crop water need.");
       return;
     }
 
@@ -90,8 +91,8 @@ export default function CropsPage() {
 
     setFormError(null);
 
-    addCrop({
-      ownerId: user?.uid,
+    try {
+    await addCrop({
       farmId: formData.farmId,
       farmName: selectedFarm.name,
       name: formData.name,
@@ -107,14 +108,15 @@ export default function CropsPage() {
       growthStage: formData.growthStage,
       area: Number(formData.area),
       waterNeed: formData.waterNeed,
-      health: formData.health,
-      diseaseStatus: formData.diseaseStatus,
     });
 
     setCropSavedMessage(`${formData.name.trim()}: ${copy.help.saved}`);
     setIsAddModalOpen(false);
     setIsCropHelpOpen(false);
     setFormData(newCropFormData());
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Crop could not be saved.");
+    }
   };
 
   const updateLifecycle = (patch: Partial<CropLifecycleFormValues>) => {
@@ -148,6 +150,8 @@ export default function CropsPage() {
           Register Crop
         </Button>
       </div>
+
+      {(cropLoadError || farmLoadError) && <p role="alert" className="rounded-xl border border-rose-800 bg-rose-950/30 p-3 text-sm text-rose-200">{cropLoadError || farmLoadError}</p>}
 
       {cropSavedMessage && (
         <p role="status" className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
@@ -224,7 +228,7 @@ export default function CropsPage() {
                         </Link>
                       </div>
                       <Badge className="bg-emerald-100 text-emerald-800 font-bold border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300">
-                        {crop.health}
+                        {crop.health || "Health not recorded"}
                       </Badge>
                     </div>
 
@@ -271,7 +275,7 @@ export default function CropsPage() {
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between dark:border-slate-800">
                     <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
                       <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                      Status: {crop.diseaseStatus || "Healthy"}
+                      Status: {crop.diseaseStatus || "Not recorded"}
                     </span>
                     <button
                       onClick={() => deleteCrop(crop.id)}
@@ -383,9 +387,11 @@ export default function CropsPage() {
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Growth Stage</label>
                   <select
                     value={formData.growthStage}
+                    required
                     onChange={(e) => setFormData({ ...formData, growthStage: e.target.value as Crop["growthStage"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
+                    <option value="">Select growth stage</option>
                     <option value="Seedling">Seedling</option>
                     <option value="Vegetative">Vegetative</option>
                     <option value="Flowering">Flowering</option>
@@ -415,9 +421,11 @@ export default function CropsPage() {
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Water Need</label>
                   <select
                     value={formData.waterNeed}
+                    required
                     onChange={(e) => setFormData({ ...formData, waterNeed: e.target.value as Crop["waterNeed"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
+                    <option value="">Select water need</option>
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>

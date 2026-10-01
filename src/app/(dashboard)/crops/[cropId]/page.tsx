@@ -10,14 +10,15 @@ import { getCropCareReminders, getCropLifecycleInfo } from "@/lib/crops/lifecycl
 
 export default function CropDetailsPage() {
   const { cropId } = useParams<{ cropId: string }>();
-  const { crops } = useCrops();
+  const { crops, loading, error } = useCrops();
   const crop = crops.find((item) => item.id === cropId);
 
   if (!crop) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 py-12 text-center">
         <Sprout className="mx-auto h-12 w-12 text-slate-400" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Crop Not Found</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">{loading ? "Loading crop…" : "Crop Not Found"}</h1>
+        {error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
         <p className="text-sm text-slate-500 dark:text-slate-400">
           This crop may have been removed or belongs to another account.
         </p>
@@ -46,7 +47,7 @@ export default function CropDetailsPage() {
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">{crop.farmName}</p>
         </div>
-        <Badge className="ml-auto">{crop.health}</Badge>
+        <Badge className="ml-auto">{crop.health || "Health not recorded"}</Badge>
       </div>
 
       <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -97,8 +98,8 @@ export default function CropDetailsPage() {
           </h2>
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Water need</dt><dd className="font-semibold">{crop.waterNeed}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Health</dt><dd className="font-semibold">{crop.health}</dd></div>
-            <div className="flex items-start justify-between gap-3"><dt className="flex items-center gap-1 text-slate-500"><ShieldCheck className="h-4 w-4" /> Disease status</dt><dd className="text-right font-semibold">{crop.diseaseStatus || "Healthy"}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-slate-500">Health</dt><dd className="font-semibold">{crop.health || "Not recorded"}</dd></div>
+            <div className="flex items-start justify-between gap-3"><dt className="flex items-center gap-1 text-slate-500"><ShieldCheck className="h-4 w-4" /> Disease status</dt><dd className="text-right font-semibold">{crop.diseaseStatus || "Not recorded"}</dd></div>
           </dl>
         </section>
       </div>

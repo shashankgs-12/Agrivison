@@ -13,7 +13,7 @@ export const GEMINI_IMAGE_MODELS = [
 // Keep text chat on its existing preferred model while sharing the bounded
 // transient-error policy. Image analysis uses the explicit fast/fallback pair above.
 const GEMINI_TEXT_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash"] as const;
-const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
+const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
 const MAX_PROVIDER_ERROR_CHARS = 4_000;
 
 function getApiKey(): string {

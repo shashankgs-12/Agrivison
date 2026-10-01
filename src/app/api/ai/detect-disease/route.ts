@@ -4,6 +4,8 @@ import { PROMPTS } from "@/lib/ai/prompts";
 import { auth } from "@/auth";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const localizedTextSchema = z.union([
   z.string().min(1),
   z.record(z.string(), z.string()),
@@ -202,7 +204,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, result: parsedData });
   } catch (error: unknown) {
-    console.error("Disease Detection Error:", error);
+    console.error("Disease Detection Error:", error instanceof Error ? error.name : "unknown error");
 
     if (error instanceof GeminiServiceError) {
       const status = error.retryable ? (error.status === 504 ? 504 : 503) : 502;
@@ -212,8 +214,14 @@ export async function POST(req: NextRequest) {
           retryable: error.retryable,
           isBusy: error.retryable,
           error: error.retryable
-            ? "Both AI models are temporarily unavailable. Your image is still selected; please try again shortly."
-            : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP leaf photo.",
+            ? error.reason === "rate_limited"
+              ? "The AI provider has reached its request quota or rate limit. Check the Gemini project quota, then try again."
+              : error.reason === "model_unavailable"
+                ? "The configured Gemini project cannot access the selected image models. Check model access for this API key, then retry."
+                : "The AI service is temporarily unavailable. Your image is still selected; please try again shortly."
+            : error.reason === "permission_denied"
+              ? "The configured AI key does not have permission to use the Gemini API. Check the key’s project and API access."
+              : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP leaf photo.",
         },
         { status }
       );

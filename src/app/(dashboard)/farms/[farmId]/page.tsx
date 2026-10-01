@@ -8,12 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFarms } from "@/hooks/use-farms";
 import { useCrops } from "@/hooks/use-crops";
-import { useAuthStore } from "@/stores/auth-store";
-import { useFarmStore } from "@/stores/farm-store";
 import { Crop } from "@/stores/crop-store";
 import { useRouter } from "next/navigation";
 import { CropLifecycleFields, type CropLifecycleFormValues } from "@/components/crops/crop-lifecycle-fields";
-import { getCropCareReminders, getCropDateAfterDays, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
+import { getCropCareReminders, getCropLifecycleInfo, getCropMaintenanceDefaults } from "@/lib/crops/lifecycle";
 
 type FarmCropFormData = {
   name: string;
@@ -22,8 +20,6 @@ type FarmCropFormData = {
   growthStage: Crop["growthStage"];
   area: number;
   waterNeed: Crop["waterNeed"];
-  health: Crop["health"];
-  diseaseStatus: string;
 } & CropLifecycleFormValues;
 
 const InteractiveFarmMap = dynamic(() => import("@/components/maps/leaflet-map"), {
@@ -38,12 +34,10 @@ const InteractiveFarmMap = dynamic(() => import("@/components/maps/leaflet-map")
 export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: string }> | { farmId: string } }) {
   const router = useRouter();
   const resolvedParams = params instanceof Promise ? use(params) : params;
-  const { user } = useAuthStore();
-  const { farms, deleteFarm } = useFarms();
-  const updateFarm = useFarmStore((state) => state.updateFarm);
+  const { farms, deleteFarm, loading: farmsLoading, error: farmsError } = useFarms();
 
   const farm = farms.find((f) => f.id === resolvedParams.farmId);
-  const { crops: farmCrops, addCrop, deleteCrop } = useCrops(farm?.id);
+  const { crops: farmCrops, addCrop, deleteCrop, error: cropsError } = useCrops(farm?.id);
 
   const [isAddPlantModalOpen, setIsAddPlantModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -53,20 +47,26 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
   const [formData, setFormData] = useState<FarmCropFormData>(() => ({
     name: "",
     variety: "",
-    sowingDate: getCropDateAfterDays(0),
+    sowingDate: "",
     lifecycleType: "ANNUAL",
-    expectedHarvest: getCropDateAfterDays(120),
+    expectedHarvest: "",
     establishmentPeriodMonths: 12,
     maturityPeriodMonths: 36,
     firstExpectedHarvest: "",
     harvestIntervalMonths: 12,
     maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
-    growthStage: "Seedling" as Crop["growthStage"],
-    area: farm ? Math.min(farm.area, 5) : 2,
-    waterNeed: "Medium" as Crop["waterNeed"],
-    health: "Excellent" as Crop["health"],
-    diseaseStatus: "Healthy",
+    growthStage: "" as Crop["growthStage"],
+    area: 0,
+    waterNeed: "" as Crop["waterNeed"],
   }));
+
+  if (farmsLoading) {
+    return <div role="status" className="mx-auto max-w-4xl py-12 text-center text-sm text-slate-400">Loading farm records…</div>;
+  }
+
+  if (farmsError || cropsError) {
+    return <p role="alert" className="mx-auto max-w-4xl rounded-xl border border-rose-800 bg-rose-950/30 p-4 text-sm text-rose-200">{farmsError || cropsError}</p>;
+  }
 
   if (!farm) {
     return (
@@ -81,15 +81,22 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     );
   }
 
-  const handleDelete = () => {
-    farmCrops.forEach((crop) => deleteCrop(crop.id));
-    deleteFarm(farm.id);
-    router.push("/farms");
+  const handleDelete = async () => {
+    try {
+      await deleteFarm(farm.id);
+      router.push("/farms");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Farm could not be deleted.");
+    }
   };
 
-  const handleAddPlant = (e: React.FormEvent) => {
+  const handleAddPlant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
+    if (!formData.sowingDate || !formData.growthStage || !formData.waterNeed || !Number.isFinite(formData.area) || formData.area <= 0 || formData.area > farm.area) {
+      setFormError("Enter the planting date, growth stage, water need, and a valid crop area within this farm.");
+      return;
+    }
 
     if (formData.lifecycleType === "ANNUAL" && (!formData.expectedHarvest || Date.parse(formData.expectedHarvest) < Date.parse(formData.sowingDate))) {
       setFormError("Expected harvest date must be on or after the sowing date.");
@@ -105,8 +112,8 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     }
     setFormError(null);
 
-    addCrop({
-      ownerId: user?.uid,
+    try {
+    await addCrop({
       farmId: farm.id,
       farmName: farm.name,
       name: formData.name.trim(),
@@ -122,12 +129,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
       growthStage: formData.growthStage,
       area: Number(formData.area),
       waterNeed: formData.waterNeed,
-      health: formData.health,
-      diseaseStatus: formData.diseaseStatus,
     });
-
-    // Update primary crop on farm
-    updateFarm(farm.id, { crop: formData.name.trim() });
 
     setIsAddPlantModalOpen(false);
     setSuccessMsg(`Plant "${formData.name}" added successfully to ${farm.name}!`);
@@ -136,20 +138,21 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     setFormData({
       name: "",
       variety: "",
-      sowingDate: getCropDateAfterDays(0),
+      sowingDate: "",
       lifecycleType: "ANNUAL",
-      expectedHarvest: getCropDateAfterDays(120),
+      expectedHarvest: "",
       establishmentPeriodMonths: 12,
       maturityPeriodMonths: 36,
       firstExpectedHarvest: "",
       harvestIntervalMonths: 12,
       maintenanceSchedule: getCropMaintenanceDefaults("ANNUAL"),
-      growthStage: "Seedling",
-      area: Math.min(farm.area, 5),
-      waterNeed: "Medium",
-      health: "Excellent",
-      diseaseStatus: "Healthy",
+      growthStage: "" as Crop["growthStage"],
+      area: 0,
+      waterNeed: "" as Crop["waterNeed"],
     });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Crop could not be saved.");
+    }
   };
 
   const updateLifecycle = (patch: Partial<CropLifecycleFormValues>) => {
@@ -296,7 +299,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                       </p>
                     </div>
                     <Badge className="bg-emerald-600 text-white font-bold text-[10px]">
-                      {crop.health}
+                      {crop.health || "Health not recorded"}
                     </Badge>
                   </div>
 
@@ -335,7 +338,7 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                       <ShieldCheck className="h-3.5 w-3.5" /> Scan Plant Health
                     </Link>
                     <button
-                      onClick={() => deleteCrop(crop.id)}
+                      onClick={() => void deleteCrop(crop.id).catch((error) => setFormError(error instanceof Error ? error.message : "Crop could not be deleted."))}
                       className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                       title="Delete plant"
                     >
@@ -420,9 +423,11 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Growth Stage</label>
                   <select
                     value={formData.growthStage}
+                    required
                     onChange={(e) => setFormData({ ...formData, growthStage: e.target.value as Crop["growthStage"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
+                    <option value="">Select growth stage</option>
                     <option value="Seedling">Seedling</option>
                     <option value="Vegetative">Vegetative</option>
                     <option value="Flowering">Flowering</option>
@@ -448,9 +453,11 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
                   <label className="block text-slate-700 dark:text-slate-300 mb-1">Water Need</label>
                   <select
                     value={formData.waterNeed}
+                    required
                     onChange={(e) => setFormData({ ...formData, waterNeed: e.target.value as Crop["waterNeed"] })}
                     className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
+                    <option value="">Select water need</option>
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
@@ -483,4 +490,3 @@ export default function FarmDetailsPage({ params }: { params: Promise<{ farmId: 
     </div>
   );
 }
-

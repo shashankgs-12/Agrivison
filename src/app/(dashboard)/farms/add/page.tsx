@@ -23,8 +23,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { useFarmStore } from "@/stores/farm-store";
-import { useAuthStore } from "@/stores/auth-store";
+import { useFarms } from "@/hooks/use-farms";
 import { useWeatherStore } from "@/stores/weather-store";
 
 const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
@@ -48,8 +47,7 @@ type TrackingStatus = "idle" | "recording" | "paused" | "completed";
 
 export default function AddFarmPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
-  const addFarm = useFarmStore((state) => state.addFarm);
+  const { addFarm } = useFarms();
   const { updateLocation } = useWeatherStore();
 
   // Mode Selection
@@ -58,8 +56,11 @@ export default function AddFarmPage() {
   // Metadata Form State
   const [farmName, setFarmName] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
-  const [soilType, setSoilType] = useState("Loamy Soil");
-  const [waterSource, setWaterSource] = useState("Borewell");
+  const [soilType, setSoilType] = useState("");
+  const [waterSource, setWaterSource] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const requestKeyRef = useRef<string | null>(null);
   const [areaAcres, setAreaAcres] = useState<number>(0);
   const [areaHectares, setAreaHectares] = useState<number>(0);
   const [perimeterMeters, setPerimeterMeters] = useState<number>(0);
@@ -291,9 +292,10 @@ export default function AddFarmPage() {
   // SAVE FARM TO DATABASE
   // ----------------------------------------------------
 
-  const handleSaveFarm = (e: React.FormEvent) => {
+  const handleSaveFarm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!farmName.trim()) return;
+    if (isSaving) return;
+    if (!farmName.trim()) { setSaveError("Enter a farm name."); return; }
 
     const activeBoundary =
       selectedMode === "live-gps"
@@ -304,19 +306,42 @@ export default function AddFarmPage() {
         ? manualPolygonPoints
         : undefined;
 
-    addFarm({
-      ownerId: user?.uid,
-      name: farmName,
-      area: areaAcres > 0 ? areaAcres : 5.0,
-      location: locationAddress || `${coordinates.lat.toFixed(3)}°, ${coordinates.lng.toFixed(3)}°`,
-      status: "Healthy",
-      soilType,
-      waterSource,
-      coordinates,
-      boundary: activeBoundary,
-    });
+    if (selectedMode === "live-gps" && trackingStatus !== "completed") {
+      setSaveError("Finish and lock the GPS boundary walk before saving the farm.");
+      return;
+    }
 
-    router.push("/farms");
+    if (!activeBoundary || activeBoundary.length < 3 || !geoJSONBoundary || areaAcres <= 0 || perimeterMeters <= 0) {
+      setSaveError("Complete and lock a GPS walk or plot at least three polygon points before saving the farm.");
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    requestKeyRef.current ??= crypto.randomUUID();
+    try {
+      await addFarm({
+        name: farmName.trim(),
+        area: areaAcres,
+        areaHectares,
+        perimeterMeters,
+        location: locationAddress.trim() || `${coordinates.lat.toFixed(6)}°, ${coordinates.lng.toFixed(6)}°`,
+        status: "Healthy",
+        soilType: soilType || undefined,
+        waterSource: waterSource || undefined,
+        coordinates,
+        boundary: activeBoundary,
+        geoJSONBoundary: geoJSONBoundary as { type: "Polygon"; coordinates: number[][][] },
+        surveyMethod: selectedMode === "live-gps" ? "live-gps" : "manual",
+        requestKey: requestKeyRef.current,
+      });
+      requestKeyRef.current = null;
+      router.push("/farms");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Farm survey could not be saved. Please retry.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -711,7 +736,7 @@ export default function AddFarmPage() {
                       step="0.01"
                       required
                       value={areaAcres}
-                      onChange={(e) => setAreaAcres(Number(e.target.value))}
+                      readOnly
                       className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                     />
                   </div>
@@ -725,6 +750,7 @@ export default function AddFarmPage() {
                       onChange={(e) => setSoilType(e.target.value)}
                       className="w-full h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                     >
+                      <option value="">Not recorded</option>
                       <option value="Loamy Soil">Loamy Soil</option>
                       <option value="Black Cotton Soil">Black Cotton Soil</option>
                       <option value="Red Soil">Red Soil</option>
@@ -743,6 +769,7 @@ export default function AddFarmPage() {
                     onChange={(e) => setWaterSource(e.target.value)}
                     className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
+                    <option value="">Not recorded</option>
                     <option value="Borewell">Borewell</option>
                     <option value="Canal">Canal</option>
                     <option value="River">River</option>
@@ -750,12 +777,14 @@ export default function AddFarmPage() {
                   </select>
                 </div>
 
+                {saveError && <p role="alert" className="text-sm font-semibold text-rose-600">{saveError}</p>}
                 <Button
                   type="submit"
+                  disabled={isSaving}
                   className="w-full py-6 text-base font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 rounded-xl mt-2"
                 >
                   <Save className="h-5 w-5 mr-2" />
-                  Save GeoJSON Farm to Database
+                  {isSaving ? "Saving farm…" : "Save GeoJSON Farm to Database"}
                 </Button>
               </form>
             </div>

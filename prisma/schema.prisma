@@ -30,6 +30,7 @@ model User {
   isActive      Boolean          @default(true)
   accounts      Account[]
   sessions      Session[]
+  farms         Farm[]
   plantScans    PlantScan[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -70,11 +71,50 @@ model VerificationToken {
 }
 
 model Farm {
-  id        Int      @id @default(autoincrement())
-  name      String
-  location  String
-  area      Float
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  ownerId         String?
+  name            String
+  location        String
+  latitude        Float?
+  longitude       Float?
+  boundary        Json?
+  area            Float
+  areaHectares    Float?
+  perimeterMeters Float?
+  soilType        String?
+  waterSource     String?
+  surveyMethod    String?
+  requestKey      String?  @unique
+  status          String   @default("Healthy")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  owner           User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  crops           Crop[]
+}
+
+model Crop {
+  id                       String   @id @default(cuid())
+  farmId                   Int
+  name                     String
+  variety                  String?
+  sowingDate               String
+  expectedHarvest          String?
+  lifecycleType            String   @default("ANNUAL")
+  establishmentPeriodMonths Int?
+  maturityPeriodMonths     Int?
+  firstExpectedHarvest     String?
+  harvestIntervalMonths    Int?
+  maintenanceSchedule     Json?
+  growthStage              String
+  area                     Float
+  waterNeed                String
+  health                   String?
+  diseaseStatus            String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  farm                     Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
 }
 
 model PlantScan {

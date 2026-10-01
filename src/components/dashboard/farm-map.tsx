@@ -17,7 +17,7 @@ const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
 });
 
 export function FarmMap() {
-  const { farms } = useFarms();
+  const { farms, error: farmError } = useFarms();
   const { weather, updateLocation } = useWeatherStore();
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
 
@@ -61,6 +61,8 @@ export function FarmMap() {
           </span>
         </Link>
       </div>
+
+      {farmError && <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950/30 p-3 text-xs text-rose-200">{farmError}</p>}
 
       <GISMapEngine
         center={{ lat: centerLat, lng: centerLng }}

@@ -35,9 +35,15 @@ function getSafeAuthDiagnostic(error: unknown) {
     "PrismaClientValidationError",
     "TypeError",
   ]);
-  const safeCheckMessages = new Set([
-    "pkceCodeVerifier cookie was missing",
-    "pkceCodeVerifier value could not be parsed",
+  const safeCheckMessages = new Map([
+    ["pkceCodeVerifier cookie was missing", "pkce_cookie_missing"],
+    ["pkceCodeVerifier value could not be parsed", "pkce_cookie_invalid"],
+    ["state cookie was missing", "state_cookie_missing"],
+    ["state value could not be parsed", "state_cookie_invalid"],
+    ["nonce cookie was missing", "nonce_cookie_missing"],
+    ["nonce value could not be parsed", "nonce_cookie_invalid"],
+    ["State could not be decoded", "state_token_invalid"],
+    ["State data was provided but the provider is not configured to use state", "state_check_mismatch"],
   ]);
   let type = "Unknown";
   let cause: string | undefined;
@@ -53,7 +59,7 @@ function getSafeAuthDiagnostic(error: unknown) {
       prismaCode = record.code;
     }
     if (typeof record.message === "string" && safeCheckMessages.has(record.message)) {
-      check = record.message;
+      check = safeCheckMessages.get(record.message);
     }
     current = record.cause ?? record.err;
   }
@@ -205,30 +211,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null;
           }
         } catch (dbErr) {
-          console.warn("Database connection issue during authentication:", dbErr);
-        }
-
-        // Keep demo credentials out of production unless explicitly enabled.
-        const demoLoginEnabled =
-          process.env.NODE_ENV !== "production" ||
-          process.env.ENABLE_DEMO_LOGIN === "true";
-        if (
-          demoLoginEnabled &&
-          (email === "farmer@agrivision.ai" || email === "farmer@agrivision.com")
-        ) {
-          if (inputPassword === "password123") {
-            return {
-              id: "usr-demo-farmer",
-              name: "Demo Farmer",
-              email: "farmer@agrivision.ai",
-              image: "https://api.dicebear.com/7.x/avataaars/svg?seed=DemoFarmer",
-              role: "FARMER" as const,
-              phone: "+91 9880651312",
-              location: "Karnataka, India",
-              subscription: "PREMIUM" as const,
-            };
-          }
-          return null;
+          const record = dbErr && typeof dbErr === "object" ? dbErr as Record<string, unknown> : {};
+          console.warn("[auth] credentials database lookup failed", {
+            cause: dbErr instanceof Error ? dbErr.name : "unknown",
+            prismaCode: typeof record.code === "string" && /^P\d{4}$/.test(record.code) ? record.code : undefined,
+          });
         }
 
         return null;

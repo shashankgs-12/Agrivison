@@ -1,6 +1,4 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-
+/** Crop records are loaded from the authenticated PostgreSQL API. */
 export interface Crop {
   id: string;
   ownerId?: string;
@@ -17,10 +15,10 @@ export interface Crop {
   harvestIntervalMonths?: number;
   maintenanceSchedule?: CropMaintenanceSchedule;
   growthStage: "Seedling" | "Vegetative" | "Flowering" | "Fruiting" | "Maturation" | "Harvesting";
-  area: number; // in acres
+  area: number;
   waterNeed: "Low" | "Medium" | "High" | "Critical";
-  health: "Excellent" | "Good" | "Fair" | "Under Stress" | "Diseased";
-  diseaseStatus: string; // e.g. "Healthy" or "Yellow Rust Alert"
+  health?: "Excellent" | "Good" | "Fair" | "Under Stress" | "Diseased";
+  diseaseStatus?: string;
   soilType?: string;
   createdAt: string;
 }
@@ -32,55 +30,3 @@ export interface CropMaintenanceSchedule {
   pruningDays: number;
   soilCareDays: number;
 }
-
-interface CropState {
-  crops: Crop[];
-  addCrop: (crop: Omit<Crop, "id" | "createdAt">) => Crop;
-  updateCrop: (id: string, updatedFields: Partial<Crop>) => void;
-  deleteCrop: (id: string) => void;
-  getCropsByUser: (userId?: string) => Crop[];
-  getCropsByFarm: (farmId: string) => Crop[];
-  resetToZero: () => void;
-}
-
-export const useCropStore = create<CropState>()(
-  persist(
-    (set, get) => ({
-      crops: [],
-      addCrop: (newCrop) => {
-        const crop: Crop = {
-          ...newCrop,
-          id: `crop-${Date.now()}`,
-          createdAt: new Date().toISOString().split("T")[0],
-        };
-        set((state) => ({
-          crops: [crop, ...state.crops],
-        }));
-        return crop;
-      },
-      updateCrop: (id, updatedFields) =>
-        set((state) => ({
-          crops: state.crops.map((c) =>
-            c.id === id ? { ...c, ...updatedFields } : c
-          ),
-        })),
-      deleteCrop: (id) =>
-        set((state) => ({
-          crops: state.crops.filter((c) => c.id !== id),
-        })),
-      getCropsByUser: (userId) => {
-        const state = get();
-        if (!userId) return [];
-        return state.crops.filter((crop) => crop.ownerId === userId);
-      },
-      getCropsByFarm: (farmId) => {
-        const state = get();
-        return state.crops.filter((c) => c.farmId === farmId);
-      },
-      resetToZero: () => set({ crops: [] }),
-    }),
-    {
-      name: "agrivision-crops-storage",
-    }
-  )
-);

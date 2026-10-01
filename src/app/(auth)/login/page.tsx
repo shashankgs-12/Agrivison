@@ -29,6 +29,7 @@ import type { ConfirmationResult } from "firebase/auth";
 import { auth as firebaseAuth, isFirebasePhoneAuthConfigured } from "@/lib/firebase/config";
 
 export default function LoginPage() {
+  const showDemoLogin = process.env.NODE_ENV !== "production";
   const setUser = useAuthStore((state) => state.setUser);
 
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
@@ -319,7 +320,7 @@ export default function LoginPage() {
         </div>
 
         {/* Quick Demo Login Preset Buttons */}
-        <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl">
+        {showDemoLogin && <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl">
           <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 mb-1.5 flex items-center gap-1.5">
             <UserCheck className="h-3.5 w-3.5" /> 1-Click Quick Demo Sign In
           </div>
@@ -334,7 +335,7 @@ export default function LoginPage() {
               {isDemoLoading ? "Signing in…" : "Demo Farmer Sign In"}
             </button>
           </div>
-        </div>
+        </div>}
 
         {/* Success Banner */}
         {successMessage && (

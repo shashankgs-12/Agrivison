@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateTextWithGemini } from "@/lib/ai/gemini";
+
+export const maxDuration = 60;
 import { PROMPTS } from "@/lib/ai/prompts";
 import { auth } from "@/auth";
 

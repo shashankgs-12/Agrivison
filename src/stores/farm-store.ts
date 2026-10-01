@@ -1,64 +1,19 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-
+/** Farm records are loaded from the authenticated PostgreSQL API. */
 export interface Farm {
   id: string;
   ownerId?: string;
   name: string;
-  area: number; // in acres
+  area: number;
+  areaHectares?: number;
+  perimeterMeters?: number;
   crop?: string;
   status: "Healthy" | "Alert Active" | "Optimal";
   location: string;
   soilType?: string;
   waterSource?: string;
+  surveyMethod?: "manual" | "live-gps";
+  geoJSONBoundary?: { type: "Polygon"; coordinates: number[][][] };
   coordinates: { lat: number; lng: number };
-  boundary?: [number, number][]; // Polygon coordinates
+  boundary?: [number, number][];
   createdAt: string;
 }
-
-interface FarmState {
-  farms: Farm[];
-  addFarm: (farm: Omit<Farm, "id" | "createdAt">) => Farm;
-  updateFarm: (id: string, farm: Partial<Farm>) => void;
-  deleteFarm: (id: string) => void;
-  getFarmsByUser: (userId?: string) => Farm[];
-  resetToZero: () => void;
-}
-
-export const useFarmStore = create<FarmState>()(
-  persist(
-    (set, get) => ({
-      farms: [],
-      addFarm: (newFarm) => {
-        const farm: Farm = {
-          ...newFarm,
-          id: `farm-${Date.now()}`,
-          createdAt: new Date().toISOString().split("T")[0],
-        };
-        set((state) => ({
-          farms: [farm, ...state.farms],
-        }));
-        return farm;
-      },
-      updateFarm: (id, updatedFields) =>
-        set((state) => ({
-          farms: state.farms.map((f) =>
-            f.id === id ? { ...f, ...updatedFields } : f
-          ),
-        })),
-      deleteFarm: (id) =>
-        set((state) => ({
-          farms: state.farms.filter((f) => f.id !== id),
-        })),
-      getFarmsByUser: (userId) => {
-        const state = get();
-        if (!userId) return [];
-        return state.farms.filter((farm) => farm.ownerId === userId);
-      },
-      resetToZero: () => set({ farms: [] }),
-    }),
-    {
-      name: "agrivision-farms-storage",
-    }
-  )
-);

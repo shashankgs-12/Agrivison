@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeImageWithGemini, GeminiServiceError } from "@/lib/ai/gemini";
+
+export const maxDuration = 60;
 import { PROMPTS } from "@/lib/ai/prompts";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
