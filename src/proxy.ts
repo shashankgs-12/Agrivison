@@ -6,20 +6,17 @@ const { auth } = NextAuth(authConfig);
 
 const DEFAULT_PRODUCTION_ORIGIN = "https://agrivision-ai-steel.vercel.app";
 
-function getCanonicalOrigin() {
+function getProductionOrigin() {
   const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const productionOrigin = productionUrl ? `https://${productionUrl}` : DEFAULT_PRODUCTION_ORIGIN;
-
-  // OAuth is registered for the stable production hostname. Preview URLs must
-  // use that same origin so the check cookies survive the Google callback.
-  if (process.env.VERCEL_ENV === "preview") return productionOrigin;
-
-  return process.env.AUTH_URL || process.env.NEXTAUTH_URL || productionOrigin;
+  return process.env.AUTH_URL || process.env.NEXTAUTH_URL ||
+    (productionUrl ? `https://${productionUrl}` : DEFAULT_PRODUCTION_ORIGIN);
 }
 
 export default auth((req) => {
-  if (process.env.VERCEL_ENV === "production" || process.env.VERCEL_ENV === "preview") {
-    const authUrl = getCanonicalOrigin();
+  // Keep production aliases on the stable OAuth origin. Preview URLs must stay
+  // on their own host so Auth.js can proxy the OAuth callback back to that URL.
+  if (process.env.VERCEL_ENV === "production") {
+    const authUrl = getProductionOrigin();
 
     if (authUrl) {
       try {
