@@ -2,8 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
-  Sprout,
   Scan,
   Sparkles,
   CloudSun,
@@ -135,9 +135,14 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200/80 z-50 dark:bg-slate-950/80 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-              <Sprout className="h-5 w-5" />
-            </div>
+            <Image
+              src="/agrivision-logo.png"
+              alt="AgriVision.AI — Smart Farming"
+              width={48}
+              height={48}
+              fetchPriority="high"
+              className="h-10 w-10 shrink-0 object-contain"
+            />
             <span className="font-bold text-xl text-slate-900 dark:text-white">
               AgriVision<span className="text-emerald-600">.AI</span>
             </span>
@@ -420,9 +425,13 @@ export default function HomePage() {
       <footer className="border-t border-slate-200 bg-white py-10 px-4 dark:bg-slate-950 dark:border-slate-800">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-emerald-600 to-green-500 flex items-center justify-center text-white">
-              <Sprout className="h-4 w-4" />
-            </div>
+            <Image
+              src="/agrivision-logo.png"
+              alt="AgriVision.AI — Smart Farming"
+              width={40}
+              height={40}
+              className="h-8 w-8 shrink-0 object-contain"
+            />
             <span className="font-bold text-slate-900 dark:text-white">
               AgriVision<span className="text-emerald-600">.AI</span>
             </span>

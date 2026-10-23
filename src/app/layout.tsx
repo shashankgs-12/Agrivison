@@ -13,12 +13,42 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.AUTH_URL ??
+          process.env.NEXTAUTH_URL ??
+          "https://agrivision-ai-steel.vercel.app"
+  ),
   title: {
-    default: "AgriVision AI — Smart Farming Platform",
-    template: "%s | AgriVision AI",
+    default: "AgriVision.AI — Smart Farming",
+    template: "%s | AgriVision.AI",
   },
   description:
-    "AI-powered precision agriculture platform for smart farming. Crop intelligence, GPS farm mapping, weather forecasting, disease detection, and multilingual support.",
+    "AI-powered crop intelligence, plant disease detection, and smart farming solutions for farmers.",
+  openGraph: {
+    title: "AgriVision.AI — Smart Farming",
+    description:
+      "AI-powered crop intelligence, plant disease detection, and smart farming solutions for farmers.",
+    siteName: "AgriVision.AI",
+    images: [
+      {
+        url: "/agrivision-logo.png",
+        width: 1254,
+        height: 1254,
+        alt: "AgriVision.AI — Smart Farming",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "AgriVision.AI — Smart Farming",
+    description:
+      "AI-powered crop intelligence, plant disease detection, and smart farming solutions for farmers.",
+    images: ["/agrivision-logo.png"],
+  },
   keywords: [
     "agriculture",
     "farming",

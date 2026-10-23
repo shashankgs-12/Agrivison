@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -66,9 +67,14 @@ export function Sidebar() {
       <div>
         <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-100 dark:border-zinc-800">
           <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-[#008631] to-[#00ab41] flex items-center justify-center text-white shadow-md shadow-[#008631]/20 shrink-0">
-              <Sprout className="h-6 w-6" />
-            </div>
+            <Image
+              src="/agrivision-logo.png"
+              alt="AgriVision.AI — Smart Farming"
+              width={48}
+              height={48}
+              fetchPriority="high"
+              className="h-10 w-10 shrink-0 object-contain"
+            />
             {sidebarOpen && (
               <div className="flex flex-col">
                 <span className="font-bold text-zinc-900 text-lg leading-tight dark:text-white">

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import Image from "next/image";
 
 export default function AuthLayout({
   children,
@@ -12,9 +12,14 @@ export default function AuthLayout({
       {/* Auth Header */}
       <div className="px-4 py-3 sm:px-6 sm:py-5 flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5 min-h-[44px]">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-tr from-[#008631] to-[#00ab41] flex items-center justify-center text-white shadow-lg shadow-[#008631]/20">
-            <Sprout className="h-5 w-5" />
-          </div>
+          <Image
+            src="/agrivision-logo.png"
+            alt="AgriVision.AI — Smart Farming"
+            width={48}
+            height={48}
+            fetchPriority="high"
+            className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 object-contain"
+          />
           <span className="font-bold text-lg sm:text-xl text-zinc-900 dark:text-white tracking-tight">
             AgriVision<span className="text-[#00ab41]">.AI</span>
           </span>

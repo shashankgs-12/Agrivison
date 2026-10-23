@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -121,9 +122,13 @@ export function MobileDrawer() {
               onClick={closeMobileMenu}
               className="flex items-center gap-2.5 overflow-hidden"
             >
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-[#008631] to-[#00ab41] flex items-center justify-center text-white shadow-md shadow-[#008631]/20 shrink-0">
-                <Sprout className="h-5 w-5" />
-              </div>
+              <Image
+                src="/agrivision-logo.png"
+                alt="AgriVision.AI — Smart Farming"
+                width={44}
+                height={44}
+                className="h-9 w-9 shrink-0 object-contain"
+              />
               <div className="flex flex-col">
                 <span className="font-bold text-zinc-900 text-base leading-tight dark:text-white">
                   AgriVision<span className="text-[#00ab41]">.AI</span>
