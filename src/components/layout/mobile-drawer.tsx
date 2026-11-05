@@ -19,8 +19,6 @@ import {
   X,
   User as UserIcon,
   LogOut,
-  Crown,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useUIStore } from "@/stores/ui-store";
@@ -149,7 +147,7 @@ export function MobileDrawer() {
           </div>
 
           {/* Navigation Items */}
-          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-17rem)] scrollbar-thin">
+          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-8rem)] scrollbar-thin">
             {MOBILE_DRAWER_NAV.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -186,8 +184,8 @@ export function MobileDrawer() {
           </nav>
         </div>
 
-        {/* Footer Area: User Profile & Premium / Logout */}
-        <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+        {/* Footer Area: User Profile & Logout */}
+        <div className="p-3 border-t border-zinc-100 dark:border-zinc-800">
           {/* User info card */}
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -210,32 +208,6 @@ export function MobileDrawer() {
             >
               <LogOut className="h-4 w-4" />
             </button>
-          </div>
-
-          {/* Quick Go Premium Card */}
-          <div className="rounded-xl bg-gradient-to-br from-[#008631] to-[#00ab41] p-3 text-white shadow-md relative overflow-hidden">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <Crown className="h-4 w-4 text-amber-300" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-200">
-                  AgriVision Pro
-                </span>
-              </div>
-              <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
-                Active
-              </span>
-            </div>
-            <p className="text-[11px] text-emerald-50 leading-tight mb-2">
-              Hyperlocal AI weather alerts & precision crop scanning.
-            </p>
-            <Link
-              href="/settings"
-              onClick={closeMobileMenu}
-              className="min-h-11 w-full touch-manipulation py-1.5 px-3 bg-white text-[#008631] font-bold text-[11px] rounded-lg hover:bg-emerald-50 active:bg-emerald-100 transition-colors flex items-center justify-center gap-1 shadow-sm"
-            >
-              <Zap className="h-3 w-3 text-amber-500 fill-amber-500" />
-              Manage Plan
-            </Link>
           </div>
         </div>
       </div>

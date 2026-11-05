@@ -16,8 +16,6 @@ import {
   FileBarChart,
   Settings,
   ChevronLeft,
-  Crown,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useUIStore } from "@/stores/ui-store";
@@ -101,7 +99,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-14rem)] scrollbar-thin">
+        <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-5rem)] scrollbar-thin">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -138,33 +136,6 @@ export function Sidebar() {
         </nav>
       </div>
 
-      {/* Go Premium / Footer Card */}
-      {sidebarOpen ? (
-        <div className="p-3">
-          <div className="rounded-2xl bg-gradient-to-br from-[#008631] to-[#00ab41] p-4 text-white shadow-lg shadow-[#008631]/20 relative overflow-hidden">
-            <div className="absolute -right-3 -bottom-3 h-20 w-20 rounded-full bg-white/10 blur-xl pointer-events-none" />
-            <div className="flex items-center gap-2 mb-2">
-              <Crown className="h-5 w-5 text-amber-300" />
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-200">
-                Go Premium
-              </span>
-            </div>
-            <p className="text-xs text-emerald-50 leading-relaxed mb-3">
-              Unlock unlimited AI crop diagnosis & hyper-local weather alerts.
-            </p>
-            <button className="w-full py-2 px-3 bg-white text-[#008631] font-bold text-xs rounded-xl hover:bg-emerald-50 transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
-              <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-              Upgrade Plan
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="p-3 flex justify-center">
-          <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center cursor-pointer hover:bg-amber-500/20 transition-colors" title="Upgrade to Premium">
-            <Crown className="h-5 w-5" />
-          </div>
-        </div>
-      )}
     </aside>
   );
 }
