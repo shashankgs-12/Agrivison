@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { QueryProvider } from "@/components/providers/query-provider";
 
 export default function DashboardLayout({
   children,
@@ -50,39 +51,41 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-dvh bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
-      {/* Keep dashboard destinations out of the way until onboarding is complete. */}
-      {!completingProfile && <MobileDrawer />}
+    <QueryProvider>
+      <div className="min-h-dvh bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
+        {/* Keep dashboard destinations out of the way until onboarding is complete. */}
+        {!completingProfile && <MobileDrawer />}
 
-      {/* Sidebar — desktop only */}
-      {!completingProfile && <Sidebar />}
+        {/* Sidebar — desktop only */}
+        {!completingProfile && <Sidebar />}
 
-      {/* Main content area */}
-      <div
-        className={cn(
-          "transition-all duration-300 ease-in-out",
-          completingProfile ? "md:ml-0" : sidebarOpen ? "md:ml-64" : "md:ml-20"
-        )}
-      >
-        {/* Header */}
-        <Header />
-
-        {/* Page content */}
-        <main className="min-h-[calc(100dvh-4rem)] p-4 pb-24 md:p-6 md:pb-6">
-          {completingProfile && (
-            <p
-              className="mx-auto mb-5 max-w-xl rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
-              role="status"
-            >
-              Complete your mobile number and farm location, then save to unlock the dashboard.
-            </p>
+        {/* Main content area */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            completingProfile ? "md:ml-0" : sidebarOpen ? "md:ml-64" : "md:ml-20"
           )}
-          {children}
-        </main>
-      </div>
+        >
+          {/* Header */}
+          <Header />
 
-      {/* Bottom nav — mobile only */}
-      {!completingProfile && <MobileNav />}
-    </div>
+          {/* Page content */}
+          <main className="min-h-[calc(100dvh-4rem)] p-4 pb-24 md:p-6 md:pb-6">
+            {completingProfile && (
+              <p
+                className="mx-auto mb-5 max-w-xl rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
+                role="status"
+              >
+                Complete your mobile number and farm location, then save to unlock the dashboard.
+              </p>
+            )}
+            {children}
+          </main>
+        </div>
+
+        {/* Bottom nav — mobile only */}
+        {!completingProfile && <MobileNav />}
+      </div>
+    </QueryProvider>
   );
 }

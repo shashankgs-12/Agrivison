@@ -72,7 +72,7 @@ export function StatCards() {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 animate-stagger-in">
       {STATS.map((stat) => {
         const Icon = stat.Icon;
         const TrendIcon = stat.trend === "up" ? TrendingUp : stat.trend === "down" ? TrendingDown : Minus;
@@ -80,7 +80,7 @@ export function StatCards() {
         return (
           <div
             key={stat.id}
-            className="bg-white rounded-2xl border border-slate-200/80 p-4 md:p-5 shadow-sm hover:shadow-md transition-all duration-200 group dark:bg-slate-900 dark:border-slate-800"
+            className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:p-5 dark:border-slate-800 dark:bg-slate-900"
           >
             <div className="flex items-start justify-between mb-3">
               <div

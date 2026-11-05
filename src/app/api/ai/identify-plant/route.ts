@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { analyzeImageWithGemini, GeminiServiceError } from "@/lib/ai/gemini";
 
 export const maxDuration = 60;
@@ -6,6 +6,41 @@ import { PROMPTS } from "@/lib/ai/prompts";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
+
+const PLANT_RESULT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    isPlant: { type: "boolean" },
+    message: { type: "string" },
+    name: { type: "string" },
+    scientificName: { type: "string" },
+    confidence: { type: "number", minimum: 0, maximum: 100 },
+    family: { type: "string" },
+    description: { type: "string" },
+    visibleCharacteristics: { type: "string" },
+    recommendedCare: { type: "string" },
+    commonDiseases: { type: "string" },
+    suitableSoil: { type: "string" },
+    waterRequirement: { type: "string" },
+    sunlightRequirement: { type: "string" },
+  },
+  required: [
+    "isPlant",
+    "message",
+    "name",
+    "scientificName",
+    "confidence",
+    "family",
+    "description",
+    "visibleCharacteristics",
+    "recommendedCare",
+    "commonDiseases",
+    "suitableSoil",
+    "waterRequirement",
+    "sunlightRequirement",
+  ],
+  additionalProperties: false,
+};
 
 const plantResultSchema = z.object({
   isPlant: z.boolean().optional(),
@@ -72,7 +107,8 @@ export async function POST(req: NextRequest) {
       base64Data,
       detectedMime.toLowerCase(),
       promptText,
-      "crop-detection-and-plant-id"
+      "crop-detection-and-plant-id",
+      PLANT_RESULT_JSON_SCHEMA
     );
 
     if (!rawResponse) {
@@ -141,38 +177,42 @@ export async function POST(req: NextRequest) {
       sunlightRequirement: plantData.sunlightRequirement || "",
     };
 
-    // Save scan to PostgreSQL database using Prisma safely
-    try {
-      let validUserId: string | null = null;
-      if (session.user.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { id: true },
-        });
-        if (dbUser) validUserId = dbUser.id;
-      }
+    // Keep history persistence off the critical path so a slow database does
+    // not hold the successful identification response open.
+    after(async () => {
+      try {
+        let validUserId: string | null = null;
+        if (session.user.id) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { id: true },
+          });
+          if (dbUser) validUserId = dbUser.id;
+        }
 
-      await prisma.plantScan.create({
-        data: {
-          userId: validUserId,
-          imageUrl: image.length > 500000 ? "" : image,
-          plantName: formattedResult.name,
-          scientificName: formattedResult.scientificName,
-          confidence: Number(formattedResult.confidence),
-          description: formattedResult.description,
-          visibleCharacteristics: formattedResult.visibleCharacteristics,
-          recommendedCare: formattedResult.recommendedCare,
-          commonDiseases: formattedResult.commonDiseases,
-          suitableSoil: formattedResult.suitableSoil,
-          waterRequirement: formattedResult.waterRequirement,
-          sunlightRequirement: formattedResult.sunlightRequirement,
-          language: safeLanguage,
-          rawResult: JSON.stringify(formattedResult),
-        },
-      });
-    } catch (dbErr) {
-      console.warn("Notice: Failed to persist plant scan to PostgreSQL:", dbErr);
-    }
+        await prisma.plantScan.create({
+          data: {
+            userId: validUserId,
+            // The uploaded data URL is temporary and should not be duplicated in the database.
+            imageUrl: "",
+            plantName: formattedResult.name,
+            scientificName: formattedResult.scientificName,
+            confidence: Number(formattedResult.confidence),
+            description: formattedResult.description,
+            visibleCharacteristics: formattedResult.visibleCharacteristics,
+            recommendedCare: formattedResult.recommendedCare,
+            commonDiseases: formattedResult.commonDiseases,
+            suitableSoil: formattedResult.suitableSoil,
+            waterRequirement: formattedResult.waterRequirement,
+            sunlightRequirement: formattedResult.sunlightRequirement,
+            language: safeLanguage,
+            rawResult: JSON.stringify(formattedResult),
+          },
+        });
+      } catch (dbErr) {
+        console.warn("Notice: Failed to persist plant scan to PostgreSQL:", dbErr);
+      }
+    });
 
     return NextResponse.json({
       success: true,
@@ -183,15 +223,28 @@ export async function POST(req: NextRequest) {
     console.error("Plant Identification Error:", error);
 
     if (error instanceof GeminiServiceError) {
-      const status = error.retryable ? (error.status === 504 ? 504 : 503) : 502;
+      const status = error.retryable
+        ? error.reason === "rate_limited"
+          ? 429
+          : error.status === 504
+            ? 504
+            : 503
+        : 502;
+      const message = error.reason === "rate_limited"
+        ? "The AI request limit has been reached. Try again later; if this continues, check the Gemini API quota for this project."
+        : error.reason === "model_unavailable"
+          ? "The configured AI models are unavailable to this project. Check Gemini model access and try again."
+          : error.retryable
+            ? "The AI service is busy or taking too long. Your image is still selected; please try again shortly."
+            : error.reason === "permission_denied"
+              ? "The configured AI key does not have permission to use the Gemini API. Check the key’s project and API access."
+              : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP plant photo.";
       return NextResponse.json(
         {
           success: false,
           retryable: error.retryable,
           isBusy: error.retryable,
-          error: error.retryable
-            ? "Both AI models are temporarily unavailable. Your image is still selected; please try again shortly."
-            : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP plant photo.",
+          error: message,
         },
         { status }
       );

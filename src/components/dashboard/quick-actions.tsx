@@ -66,7 +66,7 @@ export function QuickActions() {
             <Link
               key={action.href}
               href={action.href}
-              className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl hover:bg-slate-50 transition-all group dark:hover:bg-slate-800/50 min-h-[48px] justify-center cursor-pointer"
+              className="group flex min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-2.5 transition-transform duration-200 hover:-translate-y-1 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               <div
                 className={cn(

@@ -74,28 +74,36 @@ export async function fetchLiveWeather(
   lng: number = 77.5946
 ): Promise<DetailedWeatherData> {
   try {
-    // 1. Fetch reverse geocoding for human-readable location name
-    let locationName = `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`;
-    try {
-      const geoRes = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        { headers: { "User-Agent": "AgriVisionAI/1.0" } }
-      );
-      if (geoRes.ok) {
+    const fallbackLocationName = `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`;
+    // Start geocoding alongside the forecast request, and keep it out of the
+    // critical path when the location provider is slow.
+    const locationNameRequest = (async () => {
+      try {
+        const geoRes = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+          {
+            headers: { "User-Agent": "AgriVisionAI/1.0" },
+            signal: AbortSignal.timeout(1_500),
+          }
+        );
+        if (!geoRes.ok) return fallbackLocationName;
         const geoData = await geoRes.json();
-        const address = geoData.address;
+        const address = geoData.address ?? {};
         const city = address.city || address.town || address.village || address.county || address.state_district || "Local Region";
         const state = address.state || address.country || "";
-        locationName = state ? `${city}, ${state}` : city;
+        return state ? `${city}, ${state}` : city;
+      } catch {
+        return fallbackLocationName;
       }
-    } catch (e) {
-      console.warn("Geocoding fetch warning:", e);
-    }
+    })();
 
-    // 2. Fetch Open-Meteo Hyperlocal Agricultural Weather
+    // Fetch Open-Meteo hyperlocal agricultural weather with a bounded wait.
     const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,soil_temperature_0_to_7cm,soil_moisture_0_to_7cm&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,uv_index_max,sunrise,sunset&timezone=auto`;
 
-    const res = await fetch(openMeteoUrl, { next: { revalidate: 1800 } });
+    const res = await fetch(openMeteoUrl, {
+      next: { revalidate: 1800 },
+      signal: AbortSignal.timeout(7_000),
+    });
     if (!res.ok) {
       throw new Error(`Open-Meteo API returned status ${res.status}`);
     }
@@ -218,6 +226,7 @@ export async function fetchLiveWeather(
     const harvestingCondition: "Excellent" | "Fair" | "Poor" =
       rainProbability < 20 && humidity < 70 ? "Excellent" : rainProbability < 50 ? "Fair" : "Poor";
 
+    const locationName = await locationNameRequest;
     return {
       source: "live",
       temperature: temp,

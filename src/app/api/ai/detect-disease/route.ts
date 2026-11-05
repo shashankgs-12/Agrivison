@@ -6,6 +6,41 @@ import { z } from "zod";
 
 export const maxDuration = 60;
 
+const DISEASE_RESULT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    disease: { type: "string" },
+    scientificName: { type: "string" },
+    confidence: { type: "number", minimum: 0, maximum: 100 },
+    severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
+    symptoms: { type: "string" },
+    treatment: {
+      type: "object",
+      properties: {
+        organic: { type: "string" },
+        chemical: { type: "string" },
+      },
+      required: ["organic", "chemical"],
+      additionalProperties: false,
+    },
+    medicineRecommendation: { type: "string" },
+    prevention: { type: "string" },
+    immediateAction: { type: "string" },
+  },
+  required: [
+    "disease",
+    "scientificName",
+    "confidence",
+    "severity",
+    "symptoms",
+    "treatment",
+    "medicineRecommendation",
+    "prevention",
+    "immediateAction",
+  ],
+  additionalProperties: false,
+};
+
 const localizedTextSchema = z.union([
   z.string().min(1),
   z.record(z.string(), z.string()),
@@ -181,7 +216,8 @@ export async function POST(req: NextRequest) {
       base64Data,
       detectedMime.toLowerCase(),
       PROMPTS.DISEASE_DETECTION(safeLanguage),
-      "disease-detection"
+      "disease-detection",
+      DISEASE_RESULT_JSON_SCHEMA
     );
 
     if (!rawResponse) {
@@ -207,7 +243,13 @@ export async function POST(req: NextRequest) {
     console.error("Disease Detection Error:", error instanceof Error ? error.name : "unknown error");
 
     if (error instanceof GeminiServiceError) {
-      const status = error.retryable ? (error.status === 504 ? 504 : 503) : 502;
+      const status = error.retryable
+        ? error.reason === "rate_limited"
+          ? 429
+          : error.status === 504
+            ? 504
+            : 503
+        : 502;
       return NextResponse.json(
         {
           success: false,

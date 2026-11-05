@@ -37,7 +37,6 @@ function toClientFarm(farm: {
       ? { lat: farm.latitude, lng: farm.longitude }
       : null,
     boundary,
-    geoJSONBoundary: geoJSON,
     area: farm.area,
     areaHectares: farm.areaHectares,
     perimeterMeters: farm.perimeterMeters,

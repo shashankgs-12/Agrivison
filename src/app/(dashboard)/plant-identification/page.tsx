@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Upload,
   Camera,
@@ -27,8 +28,12 @@ import { useLanguageStore } from "@/stores/language-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
-import { CameraModal } from "@/components/shared/camera-modal";
 import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
+
+const CameraModal = dynamic(
+  () => import("@/components/shared/camera-modal").then((module) => module.CameraModal),
+  { ssr: false, loading: () => <p className="sr-only" role="status">Opening camera…</p> }
+);
 
 const LOADING_STAGES = [
   "Preparing the plant image...",
@@ -128,31 +133,22 @@ export default function PlantIdentificationPage() {
           image: selectedImage,
           language: currentLang,
         }),
-        signal: AbortSignal.timeout(75_000),
+        signal: AbortSignal.timeout(45_000),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) {
         setResult(null);
         if (data.isPlant === false) {
           setErrorMsg(data.error || "Unable to confidently identify the plant. Please select a clearer photo of a plant leaf or crop.");
           return;
         }
-        if (
-          res.status === 503 ||
-          data.isBusy ||
-          (data.error &&
-            (data.error.includes("503") ||
-              data.error.includes("busy") ||
-              data.error.includes("high demand") ||
-              data.error.includes("temporarily unavailable")))
-        ) {
-          setErrorMsg(
-            "Plant identification is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
-          );
-          return;
-        }
-        throw new Error(data.error || "Plant identification failed.");
+        setErrorMsg(
+          typeof data.error === "string"
+            ? data.error
+            : "Plant identification failed. Please try again with a clear photo."
+        );
+        return;
       }
 
       setResult(data.result);
@@ -178,19 +174,16 @@ export default function PlantIdentificationPage() {
       }
     } catch (err: unknown) {
       setResult(null);
-      const msg = err instanceof Error ? err.message : "Failed to identify plant.";
-      if (
-        msg.includes("503") ||
-        msg.includes("busy") ||
-        msg.includes("high demand") ||
-        msg.includes("temporarily unavailable")
-      ) {
-        setErrorMsg(
-          "Plant identification is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
-        );
-      } else {
-        setErrorMsg(msg);
-      }
+      const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+      setErrorMsg(
+        timedOut
+          ? "This analysis is taking longer than expected. Your image is still selected; please try again."
+          : err instanceof TypeError
+            ? "Could not reach the AI service. Check your internet connection and try again."
+            : err instanceof Error
+              ? err.message
+              : "Failed to identify plant. Please try again."
+      );
     } finally {
       window.clearInterval(stageInterval);
       setAnalyzing(false);
@@ -542,11 +535,13 @@ export default function PlantIdentificationPage() {
       )}
 
       {/* Camera Capture Modal */}
-      <CameraModal
-        isOpen={isCameraOpen}
-        onClose={() => setIsCameraOpen(false)}
-        onCapture={handleCameraCapture}
-      />
+      {isCameraOpen && (
+        <CameraModal
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onCapture={handleCameraCapture}
+        />
+      )}
     </div>
   );
 }

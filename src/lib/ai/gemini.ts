@@ -13,7 +13,7 @@ export const GEMINI_IMAGE_MODELS = [
 // Keep text generation on stable models recommended for new Gemini API projects.
 // Production logs reported the previous text pair as unavailable to this project.
 const GEMINI_TEXT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"] as const;
-const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
+const GEMINI_REQUEST_TIMEOUT_MS = 18_000;
 const MAX_PROVIDER_ERROR_CHARS = 4_000;
 
 function getApiKey(): string {
@@ -132,7 +132,8 @@ export async function analyzeImageWithGemini(
   base64Image: string,
   mimeType: string,
   promptText: string,
-  task = "image-analysis"
+  task: string,
+  responseSchema: Record<string, unknown>
 ) {
   const requestBody = {
     contents: [
@@ -149,8 +150,13 @@ export async function analyzeImageWithGemini(
       },
     ],
     generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.2,
+      responseFormat: {
+        text: {
+          mimeType: "APPLICATION_JSON",
+          schema: responseSchema,
+        },
+      },
+      thinkingConfig: { thinkingLevel: "low" },
       maxOutputTokens: 2048,
     },
   };
@@ -165,6 +171,9 @@ export async function generateTextWithGemini(
 ) {
   const requestBody = {
     contents: [{ parts: [{ text: promptText }] }],
+    generationConfig: {
+      thinkingConfig: { thinkingLevel: "low" },
+    },
   };
 
   const data = await postGeminiWithFallback(requestBody, task, GEMINI_TEXT_MODELS);

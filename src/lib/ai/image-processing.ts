@@ -1,7 +1,16 @@
-const MAX_IMAGE_DIMENSION = 1600;
-const JPEG_QUALITY = 0.82;
+const MAX_IMAGE_DIMENSION = 1280;
+const WEBP_QUALITY = 0.8;
+const JPEG_QUALITY = 0.8;
 
-/** Resize and JPEG-compress a photo before sending it to the vision API. */
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number
+): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+/** Resize and compress a photo before sending it to the vision API. */
 export async function prepareImageForAnalysis(source: Blob | string): Promise<string> {
   const blob =
     typeof source === "string"
@@ -36,14 +45,11 @@ export async function prepareImageForAnalysis(source: Blob | string): Promise<st
     if (!context) throw new Error("Image processing is unavailable in this browser.");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    const compressed = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (result) =>
-          result ? resolve(result) : reject(new Error("Could not prepare the image for analysis.")),
-        "image/jpeg",
-        JPEG_QUALITY
-      );
-    });
+    let compressed = await canvasToBlob(canvas, "image/webp", WEBP_QUALITY);
+    if (!compressed || compressed.type !== "image/webp") {
+      compressed = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
+    }
+    if (!compressed) throw new Error("Could not prepare the image for analysis.");
 
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();

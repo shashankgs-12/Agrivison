@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Upload,
   Camera,
@@ -25,9 +26,13 @@ import { useLanguageStore } from "@/stores/language-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
-import { CameraModal } from "@/components/shared/camera-modal";
 import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
 import { useCrops } from "@/hooks/use-crops";
+
+const CameraModal = dynamic(
+  () => import("@/components/shared/camera-modal").then((module) => module.CameraModal),
+  { ssr: false, loading: () => <p className="sr-only" role="status">Opening camera…</p> }
+);
 
 const SCANNING_STAGES = [
   "Preparing the leaf image...",
@@ -135,12 +140,11 @@ export default function DiseaseDetectionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: selectedImage, language: currentLang }),
-        signal: AbortSignal.timeout(75_000),
+        signal: AbortSignal.timeout(45_000),
       });
 
       let data: {
         success?: boolean;
-        isBusy?: boolean;
         error?: string;
         result?: DiseaseDiagnosis;
       };
@@ -152,21 +156,10 @@ export default function DiseaseDetectionPage() {
 
       if (!res.ok || !data.success) {
         setResult(null);
-        if (
-          res.status === 503 ||
-          data.isBusy ||
-          (data.error &&
-            (data.error.includes("503") ||
-              data.error.includes("busy") ||
-              data.error.includes("high demand") ||
-              data.error.includes("temporarily unavailable")))
-        ) {
-          setErrorMsg(
-            "Disease scanner is temporarily unavailable. The AI service is currently busy. Please try again in a few moments."
-          );
-          return;
-        }
-        throw new Error(data.error || "Disease detection failed.");
+        setErrorMsg(
+          data.error || "Disease detection failed. Please try again with a clear photo."
+        );
+        return;
       }
 
       if (!data.result || typeof data.result !== "object") {
@@ -218,7 +211,16 @@ export default function DiseaseDetectionPage() {
       }
     } catch (err: unknown) {
       setResult(null);
-      setErrorMsg(err instanceof Error ? err.message : "Failed to scan disease. Please try again.");
+      const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+      setErrorMsg(
+        timedOut
+          ? "This scan is taking longer than expected. Your image is still selected; please try again."
+          : err instanceof TypeError
+            ? "Could not reach the AI service. Check your internet connection and try again."
+            : err instanceof Error
+              ? err.message
+              : "Failed to scan disease. Please try again."
+      );
     } finally {
       window.clearInterval(ticker);
       setAnalyzing(false);
@@ -522,11 +524,13 @@ export default function DiseaseDetectionPage() {
       )}
 
       {/* Camera Capture Modal */}
-      <CameraModal
-        isOpen={isCameraOpen}
-        onClose={() => setIsCameraOpen(false)}
-        onCapture={handleCameraCapture}
-      />
+      {isCameraOpen && (
+        <CameraModal
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onCapture={handleCameraCapture}
+        />
+      )}
     </div>
   );
 }

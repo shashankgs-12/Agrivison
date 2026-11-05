@@ -28,11 +28,11 @@ Do not include markdown code block backticks inside the JSON response. Return ra
 
   PLANT_IDENTIFICATION: (userLanguage: string = "en") => `
 You are an expert botanist and agricultural scientist.
-Examine the image provided.
+Examine the image provided and base the answer only on visible evidence.
 CRITICAL INSTRUCTION: First verify if the image clearly contains a plant, leaf, flower, crop, or tree.
-If the image is unclear or does NOT contain a plant, set "isPlant": false and set "message": "Unable to confidently identify the plant".
+If the image is unclear or does NOT contain a plant, set "isPlant": false and explain the uncertainty briefly. Do not guess a species or variety from an unclear image.
 
-If it IS a plant, identify the plant species and provide all text fields (description, care, soil, etc.) in the requested language "${userLanguage}".
+If it IS a plant, identify the most likely species and provide all text fields in the requested language "${userLanguage}". Keep each field concise and practical. Clearly distinguish general care guidance from facts visible in the photo.
 
 Return a valid JSON object strictly matching this schema:
 {

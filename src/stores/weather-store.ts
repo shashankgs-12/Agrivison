@@ -21,7 +21,9 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   fetchWeather: async (lat = 12.9716, lng = 77.5946, locationNameOverride) => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch(`/api/weather?lat=${lat}&lng=${lng}`);
+      const res = await fetch(`/api/weather?lat=${lat}&lng=${lng}`, {
+        signal: AbortSignal.timeout(9_000),
+      });
       if (!res.ok) {
         throw new Error(`Weather fetch failed: ${res.statusText}`);
       }
@@ -76,24 +78,33 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   },
 
   detectGPSAndFetch: async () => {
-    // If no weather exists, fetch regional default immediately so UI paints instantly
-    if (!get().weather) {
-      await get().fetchWeather(12.5218, 76.8951, "Mandya District, KA");
-    }
+    const defaultWeatherRequest = get().weather
+      ? Promise.resolve()
+      : get().fetchWeather(12.5218, 76.8951, "Mandya District, KA");
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
+      await defaultWeatherRequest;
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        await get().fetchWeather(latitude, longitude);
-      },
-      (err) => {
-        console.warn("GPS notice:", err.message);
-      },
-      { timeout: 4000, enableHighAccuracy: false, maximumAge: 300000 }
-    );
+    // Request GPS while the regional weather request is in flight, so the
+    // browser's location wait does not extend the first useful response.
+    const locationRequest = new Promise<GeolocationPosition | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        (err) => {
+          console.warn("GPS notice:", err.message);
+          resolve(null);
+        },
+        { timeout: 4000, enableHighAccuracy: false, maximumAge: 300000 }
+      );
+    });
+
+    await defaultWeatherRequest;
+    const position = await locationRequest;
+    if (position) {
+      const { latitude, longitude } = position.coords;
+      await get().fetchWeather(latitude, longitude);
+    }
   },
 }));

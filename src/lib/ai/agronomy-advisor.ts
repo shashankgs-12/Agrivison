@@ -180,13 +180,21 @@ export function getAdvisorErrorResponse(error: unknown): { status: number; messa
   if (error instanceof AgronomyAdvisorOutputError) return { status: 502, message: error.message };
   if (error instanceof GeminiServiceError) {
     return {
-      status: error.retryable ? 503 : 502,
+      status: error.retryable
+        ? error.reason === "rate_limited"
+          ? 429
+          : error.status === 504
+            ? 504
+            : 503
+        : 502,
       message: error.reason === "rate_limited"
         ? "The AI provider has reached its request quota or rate limit. Check the Gemini project quota, then try again."
         : error.reason === "model_unavailable"
           ? "The configured Gemini project cannot access the selected advisor models. Check model access, then retry."
           : error.reason === "permission_denied"
             ? "The configured AI key does not have permission to use the Gemini API. Check the key’s project and API access."
+          : error.reason === "timeout"
+            ? "The AI advisor took too long to respond. Please try again; your farm data is unchanged."
             : error.retryable
               ? "The AI advisor is temporarily unavailable. Please try again shortly."
               : "The AI advisor could not process this request. Please try again.",
