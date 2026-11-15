@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { getSession, signIn } from "next-auth/react";
+import { getSession, signIn, useSession } from "next-auth/react";
 import { useAuthStore } from "@/stores/auth-store";
 import { startGoogleSignIn, useGoogleProviderStatus } from "@/hooks/use-google-auth";
 import {
@@ -30,6 +30,7 @@ import { auth as firebaseAuth, isFirebasePhoneAuthConfigured } from "@/lib/fireb
 
 export default function LoginPage() {
   const showDemoLogin = process.env.NODE_ENV !== "production";
+  const { data: currentSession, status: sessionStatus } = useSession();
   const setUser = useAuthStore((state) => state.setUser);
 
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
@@ -52,6 +53,16 @@ export default function LoginPage() {
   const recaptchaContainerRef = useRef<HTMLDivElement | null>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+
+  useEffect(() => {
+    if (sessionStatus !== "authenticated" || !currentSession?.user?.id) return;
+
+    window.location.replace(
+      currentSession.user.requiresProfileCompletion
+        ? "/complete-profile"
+        : "/dashboard"
+    );
+  }, [currentSession, sessionStatus]);
 
   useEffect(() => {
     return () => {
@@ -364,7 +375,7 @@ export default function LoginPage() {
             className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
               loginMethod === "email"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
-                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
             }`}
           >
             <Mail className="h-3.5 w-3.5" />
@@ -382,7 +393,7 @@ export default function LoginPage() {
             className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
               loginMethod === "phone"
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
-                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
             }`}
           >
             <Phone className="h-3.5 w-3.5" />
@@ -440,16 +451,9 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="h-3.5 w-3.5 rounded border-zinc-300 text-[#00ab41] focus:ring-[#00ab41]"
-                />
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                  Remember me
-                </span>
-              </label>
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                Stay signed in for up to 30 days
+              </span>
               <Link
                 href="/forgot-password"
                 className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-[#00ab41] hover:underline"

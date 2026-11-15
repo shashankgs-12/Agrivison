@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import {
   Scan,
   Sparkles,
@@ -129,6 +130,22 @@ const PRICING = [
 ];
 
 export default function HomePage() {
+  const { status } = useSession();
+
+  React.useEffect(() => {
+    if (status === "authenticated") {
+      window.location.replace("/dashboard");
+    }
+  }, [status]);
+
+  if (status === "authenticated") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+        Opening your dashboard…
+      </main>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* ========= NAVBAR ========= */}

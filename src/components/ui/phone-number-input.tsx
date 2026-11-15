@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Phone } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Globe, Phone, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 const COUNTRIES = [
@@ -55,6 +55,10 @@ const COUNTRIES = [
 ] as const;
 
 type Country = (typeof COUNTRIES)[number];
+const POPULAR_COUNTRY_CODES = new Set(["IN", "US", "GB", "AE", "CA"]);
+const POPULAR_COUNTRIES = COUNTRIES.filter((country) =>
+  POPULAR_COUNTRY_CODES.has(country.code)
+);
 
 function countryForNumber(value: string): Country | undefined {
   if (!value.startsWith("+")) return undefined;
@@ -82,11 +86,56 @@ export function PhoneNumberInput({
   autoComplete?: string;
 }) {
   const [countryOverride, setCountryOverride] = useState<string | null>(null);
+  const [countryMenuOpen, setCountryMenuOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const [activeCountryCode, setActiveCountryCode] = useState("IN");
+  const countryPickerRef = useRef<HTMLDivElement>(null);
+  const countryButtonRef = useRef<HTMLButtonElement>(null);
+  const countrySearchRef = useRef<HTMLInputElement>(null);
+  const countryOptionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const countryCode = countryOverride ?? countryForNumber(value)?.code ?? "IN";
   const selectedCountry = useMemo(
     () => COUNTRIES.find((country) => country.code === countryCode) ?? COUNTRIES[0],
     [countryCode]
   );
+  const filteredCountries = useMemo(() => {
+    const query = countrySearch.trim().toLowerCase();
+    if (!query) return COUNTRIES;
+
+    const dialQuery = query.replace(/^\+/, "");
+    return COUNTRIES.filter(
+      (country) =>
+        country.name.toLowerCase().includes(query) ||
+        country.code.toLowerCase().includes(query) ||
+        country.dial.includes(query) ||
+        country.dial.slice(1).startsWith(dialQuery)
+    );
+  }, [countrySearch]);
+
+  useEffect(() => {
+    if (!countryMenuOpen) return;
+
+    const frame = window.requestAnimationFrame(() => countrySearchRef.current?.focus());
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!countryPickerRef.current?.contains(event.target as Node)) {
+        setCountryMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCountryMenuOpen(false);
+        countryButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [countryMenuOpen]);
 
   const countryDigits = selectedCountry.dial.slice(1);
   const allDigits = value.replace(/\D/g, "");
@@ -100,6 +149,32 @@ export function PhoneNumberInput({
     setCountryOverride(nextCountry.code);
     const localDigits = nationalNumber;
     onChange(localDigits ? `${nextCountry.dial}${localDigits}` : "");
+    setCountrySearch("");
+    setCountryMenuOpen(false);
+    countryButtonRef.current?.focus();
+  }
+
+  function moveCountryFocus(currentCode: string, direction: -1 | 1 | "first" | "last") {
+    if (filteredCountries.length === 0) return;
+
+    const currentIndex = filteredCountries.findIndex(
+      (country) => country.code === currentCode
+    );
+    const nextIndex =
+      direction === "first"
+        ? 0
+        : direction === "last"
+          ? filteredCountries.length - 1
+          : (currentIndex + direction + filteredCountries.length) % filteredCountries.length;
+    const nextCountry = filteredCountries[nextIndex];
+    setActiveCountryCode(nextCountry.code);
+    countryOptionRefs.current[nextCountry.code]?.focus();
+  }
+
+  function openCountryMenu() {
+    setCountrySearch("");
+    setActiveCountryCode(selectedCountry.code);
+    setCountryMenuOpen((open) => !open);
   }
 
   function changeNumber(rawValue: string) {
@@ -115,24 +190,216 @@ export function PhoneNumberInput({
   }
 
   return (
-    <div className="flex w-full items-stretch">
-      <label className="sr-only" htmlFor={`${id}-country`}>
-        Country calling code
-      </label>
-      <select
-        id={`${id}-country`}
-        aria-label="Country calling code"
-        value={countryCode}
-        onChange={(event) => selectCountry(event.target.value)}
-        disabled={disabled}
-        className="h-11 min-h-[44px] w-[7.2rem] shrink-0 touch-manipulation rounded-l-lg border border-r-0 border-slate-200 bg-white px-2 text-base text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+    <div className={`relative flex w-full items-stretch ${countryMenuOpen ? "z-50" : "z-0"}`}>
+      <div
+        ref={countryPickerRef}
+        className={`relative shrink-0 ${countryMenuOpen ? "z-50" : "z-0"}`}
+        onBlurCapture={(event) => {
+          if (
+            event.relatedTarget instanceof Node &&
+            !countryPickerRef.current?.contains(event.relatedTarget)
+          ) {
+            setCountryMenuOpen(false);
+          }
+        }}
       >
-        {COUNTRIES.map((country) => (
-          <option key={country.code} value={country.code}>
-            {country.flag} {country.dial} {country.name}
-          </option>
-        ))}
-      </select>
+        <button
+          ref={countryButtonRef}
+          type="button"
+          aria-label={`Country calling code: ${selectedCountry.name} ${selectedCountry.dial}`}
+          aria-haspopup="listbox"
+          aria-expanded={countryMenuOpen}
+          aria-controls={`${id}-country-listbox`}
+          disabled={disabled}
+          onClick={openCountryMenu}
+          className="group flex h-11 min-h-[44px] w-[7.6rem] items-center justify-between gap-2 rounded-l-xl border border-r-0 border-slate-200 bg-gradient-to-br from-white to-emerald-50/70 px-2.5 text-slate-800 shadow-sm transition hover:from-emerald-50 hover:to-emerald-100/80 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:from-slate-900 dark:to-slate-800/90 dark:text-slate-100 dark:hover:from-slate-800 dark:hover:to-emerald-950/50"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-lg leading-none shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700">
+            {selectedCountry.flag}
+          </span>
+          <span className="text-sm font-bold tracking-tight">{selectedCountry.dial}</span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:text-emerald-600 dark:group-hover:text-emerald-300 ${countryMenuOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {countryMenuOpen && (
+          <div className="absolute left-0 top-[calc(100%+0.55rem)] z-50 w-[22rem] max-w-[calc(100vw_-_2rem)] overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.24)] ring-1 ring-black/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:ring-white/5">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+              <div>
+                <div className="text-sm font-bold text-slate-900 dark:text-white">
+                  Choose a country
+                </div>
+                <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  Select the calling code for your number
+                </div>
+              </div>
+              <span className="mt-0.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900">
+                {COUNTRIES.length} countries
+              </span>
+            </div>
+
+            <div className="p-3 pb-2">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={countrySearchRef}
+                  type="search"
+                  aria-label="Search countries or calling codes"
+                  placeholder="Search country or +code"
+                  value={countrySearch}
+                  onChange={(event) => {
+                    const query = event.target.value;
+                    setCountrySearch(query);
+                    const normalized = query.trim().toLowerCase();
+                    const dialQuery = normalized.replace(/^\+/, "");
+                    const firstMatch = COUNTRIES.find(
+                      (country) =>
+                        country.name.toLowerCase().includes(normalized) ||
+                        country.code.toLowerCase().includes(normalized) ||
+                        country.dial.includes(normalized) ||
+                        country.dial.slice(1).startsWith(dialQuery)
+                    );
+                    setActiveCountryCode(firstMatch?.code ?? "");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && filteredCountries.length > 0) {
+                      event.preventDefault();
+                      const selectedMatch = filteredCountries.find(
+                        (country) => country.code === selectedCountry.code
+                      );
+                      const firstCountry = selectedMatch ?? filteredCountries[0];
+                      setActiveCountryCode(firstCountry.code);
+                      countryOptionRefs.current[firstCountry.code]?.focus();
+                    }
+                  }}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950/70 dark:text-white dark:placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="px-3 pb-2">
+              <div className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+                <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                Popular
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {POPULAR_COUNTRIES.map((country) => (
+                  <button
+                    key={country.code}
+                    type="button"
+                    title={`${country.name} ${country.dial}`}
+                    onClick={() => selectCountry(country.code)}
+                    className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                      selectedCountry.code === country.code
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/70 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40"
+                    }`}
+                  >
+                    <span className="text-sm leading-none">{country.flag}</span>
+                    {country.dial}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+                {countrySearch ? "Search results" : "All countries"}
+              </span>
+              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                {filteredCountries.length} found
+              </span>
+            </div>
+
+            <div
+              id={`${id}-country-listbox`}
+              role="listbox"
+              aria-label="Countries"
+              className="scrollbar-thin max-h-56 overflow-y-auto overscroll-contain p-1.5 pt-0"
+            >
+              {filteredCountries.length > 0 ? (
+                filteredCountries.map((country) => {
+                  const selected = selectedCountry.code === country.code;
+                  const active = activeCountryCode === country.code;
+                  return (
+                    <button
+                      key={country.code}
+                      ref={(element) => {
+                        countryOptionRefs.current[country.code] = element;
+                      }}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      tabIndex={active ? 0 : -1}
+                      onFocus={() => setActiveCountryCode(country.code)}
+                      onMouseEnter={() => setActiveCountryCode(country.code)}
+                      onClick={() => selectCountry(country.code)}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowDown") {
+                          event.preventDefault();
+                          moveCountryFocus(country.code, 1);
+                        } else if (event.key === "ArrowUp") {
+                          event.preventDefault();
+                          moveCountryFocus(country.code, -1);
+                        } else if (event.key === "Home") {
+                          event.preventDefault();
+                          moveCountryFocus(country.code, "first");
+                        } else if (event.key === "End") {
+                          event.preventDefault();
+                          moveCountryFocus(country.code, "last");
+                        }
+                      }}
+                      className={`group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
+                        selected
+                          ? "bg-emerald-50 text-slate-900 dark:bg-emerald-950/50 dark:text-white"
+                          : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                      }`}
+                    >
+                      <span className="flex h-9 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-xl leading-none shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700">
+                        {country.flag}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">
+                          {country.name}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          {country.code}
+                        </span>
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {country.dial}
+                      </span>
+                      {selected && (
+                        <Check
+                          className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex flex-col items-center px-4 py-7 text-center">
+                  <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                    <Globe className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    No country found
+                  </span>
+                  <span className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    Try a country name or calling code
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       <Input
         id={id}
         type="tel"
