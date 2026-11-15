@@ -55,6 +55,12 @@ const COUNTRIES = [
 ] as const;
 
 type Country = (typeof COUNTRIES)[number];
+type CountryMenuPosition = {
+  left: number;
+  offset: number;
+  side: "above" | "below";
+  maxHeight: number;
+};
 const POPULAR_COUNTRY_CODES = new Set(["IN", "US", "GB", "AE", "CA"]);
 const POPULAR_COUNTRIES = COUNTRIES.filter((country) =>
   POPULAR_COUNTRY_CODES.has(country.code)
@@ -89,6 +95,8 @@ export function PhoneNumberInput({
   const [countryMenuOpen, setCountryMenuOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
   const [activeCountryCode, setActiveCountryCode] = useState("IN");
+  const [countryMenuPosition, setCountryMenuPosition] =
+    useState<CountryMenuPosition | null>(null);
   const countryPickerRef = useRef<HTMLDivElement>(null);
   const countryButtonRef = useRef<HTMLButtonElement>(null);
   const countrySearchRef = useRef<HTMLInputElement>(null);
@@ -115,6 +123,36 @@ export function PhoneNumberInput({
   useEffect(() => {
     if (!countryMenuOpen) return;
 
+    const updateMenuPosition = () => {
+      const button = countryButtonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const gap = 8;
+      const viewportPadding = 12;
+      const desiredHeight = 440;
+      const spaceAbove = Math.max(0, rect.top - gap - viewportPadding);
+      const spaceBelow = Math.max(
+        0,
+        window.innerHeight - rect.bottom - gap - viewportPadding
+      );
+      const side =
+        spaceBelow >= desiredHeight || spaceBelow >= spaceAbove ? "below" : "above";
+      const availableSpace = side === "below" ? spaceBelow : spaceAbove;
+      const menuWidth = Math.min(352, Math.max(0, window.innerWidth - 32));
+
+      setCountryMenuPosition({
+        left: Math.max(
+          16,
+          Math.min(rect.left, window.innerWidth - menuWidth - 16)
+        ),
+        offset: side === "below" ? rect.bottom + gap : window.innerHeight - rect.top + gap,
+        side,
+        maxHeight: Math.max(160, Math.min(desiredHeight, availableSpace)),
+      });
+    };
+
+    updateMenuPosition();
     const frame = window.requestAnimationFrame(() => countrySearchRef.current?.focus());
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!countryPickerRef.current?.contains(event.target as Node)) {
@@ -130,10 +168,14 @@ export function PhoneNumberInput({
 
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", updateMenuPosition, true);
+    window.addEventListener("resize", updateMenuPosition);
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("scroll", updateMenuPosition, true);
+      window.removeEventListener("resize", updateMenuPosition);
     };
   }, [countryMenuOpen]);
 
@@ -224,9 +266,24 @@ export function PhoneNumberInput({
           />
         </button>
 
-        {countryMenuOpen && (
-          <div className="absolute left-0 top-[calc(100%+0.55rem)] z-50 w-[22rem] max-w-[calc(100vw_-_2rem)] overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.24)] ring-1 ring-black/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:ring-white/5">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+        {countryMenuOpen && countryMenuPosition && (
+          <div
+            style={{
+              position: "fixed",
+              left: countryMenuPosition.left,
+              top:
+                countryMenuPosition.side === "below"
+                  ? countryMenuPosition.offset
+                  : undefined,
+              bottom:
+                countryMenuPosition.side === "above"
+                  ? countryMenuPosition.offset
+                  : undefined,
+              maxHeight: countryMenuPosition.maxHeight,
+            }}
+            className="z-[100] flex w-[22rem] max-w-[calc(100vw_-_2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.24)] ring-1 ring-black/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:ring-white/5"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
               <div>
                 <div className="text-sm font-bold text-slate-900 dark:text-white">
                   Choose a country
@@ -240,7 +297,7 @@ export function PhoneNumberInput({
               </span>
             </div>
 
-            <div className="p-3 pb-2">
+            <div className="shrink-0 p-3 pb-2">
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -282,7 +339,7 @@ export function PhoneNumberInput({
               </div>
             </div>
 
-            <div className="px-3 pb-2">
+            <div className="shrink-0 px-3 pb-2">
               <div className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
                 <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                 Popular
@@ -307,7 +364,7 @@ export function PhoneNumberInput({
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+            <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-4 py-2 dark:border-slate-800">
               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
                 {countrySearch ? "Search results" : "All countries"}
               </span>
@@ -320,7 +377,7 @@ export function PhoneNumberInput({
               id={`${id}-country-listbox`}
               role="listbox"
               aria-label="Countries"
-              className="scrollbar-thin max-h-56 overflow-y-auto overscroll-contain p-1.5 pt-0"
+              className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 pt-0"
             >
               {filteredCountries.length > 0 ? (
                 filteredCountries.map((country) => {
