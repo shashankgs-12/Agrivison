@@ -6,6 +6,12 @@ import { getCropLifecycleInfo } from "@/lib/crops/lifecycle";
 import type { Crop } from "@/stores/crop-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import {
+  DEMO_CROPS,
+  DEMO_FERTILIZER_RECOMMENDATION,
+  DEMO_IRRIGATION_RECOMMENDATION,
+  isDemoUserId,
+} from "@/lib/demo/demo-data";
+import {
   AgronomyAdvisorInputError,
   generateAgronomyAdvice,
   getAdvisorErrorResponse,
@@ -32,6 +38,19 @@ export async function POST(request: NextRequest) {
     }
     if (typeof body.cropId !== "string" || !body.cropId.trim() || body.cropId.length > 100) {
       return NextResponse.json({ error: "Choose a valid crop." }, { status: 400 });
+    }
+
+    if (isDemoUserId(session.user.id)) {
+      const demoCrop = DEMO_CROPS.find((item) => item.id === body.cropId);
+      if (!demoCrop) return NextResponse.json({ error: "Choose a crop from the sample farm." }, { status: 400 });
+      const recommendation = body.type === "irrigation"
+        ? DEMO_IRRIGATION_RECOMMENDATION
+        : DEMO_FERTILIZER_RECOMMENDATION;
+      return NextResponse.json({
+        success: true,
+        demo: true,
+        recommendation,
+      });
     }
 
     const cropRecord = await prisma.crop.findFirst({

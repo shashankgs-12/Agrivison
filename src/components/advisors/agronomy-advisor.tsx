@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -18,8 +18,10 @@ import { useCrops } from "@/hooks/use-crops";
 import { useFarms } from "@/hooks/use-farms";
 import { getCropLifecycleInfo } from "@/lib/crops/lifecycle";
 import { useLanguage } from "@/hooks/use-language";
+import { useAuthStore } from "@/stores/auth-store";
 import { getUiText } from "@/lib/i18n/localization";
 import type { DetailedWeatherData } from "@/lib/weather/api";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
 
 type AdvisorType = "irrigation" | "fertilizer";
 type AdvisorWeather = Pick<DetailedWeatherData,
@@ -57,8 +59,9 @@ interface AgronomyAdvisorProps {
 export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
   const { language } = useLanguage();
   const copy = getUiText(language).advisor;
-  const { farms, loading: farmsLoading, error: farmsError } = useFarms();
-  const { crops, loading: cropsLoading, error: cropsError } = useCrops();
+  const { farms, loading: farmsLoading, error: farmsError, offline: farmsOffline } = useFarms();
+  const { crops, loading: cropsLoading, error: cropsError, offline: cropsOffline } = useCrops();
+  const userId = useAuthStore((state) => state.user?.uid);
   const [selectedCropId, setSelectedCropId] = useState(() => crops[0]?.id ?? "");
   const [fieldWeather, setFieldWeather] = useState<AdvisorWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
@@ -67,12 +70,44 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
   const [error, setError] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [missingInputs, setMissingInputs] = useState<string[]>([]);
+  const [browserOffline, setBrowserOffline] = useState(false);
 
   const crop = crops.find((item) => item.id === selectedCropId) ?? crops[0] ?? null;
   const farm = crop ? farms.find((item) => item.id === crop.farmId) ?? null : null;
   const lifecycle = crop ? getCropLifecycleInfo(crop) : null;
   const title = type === "irrigation" ? copy.irrigation : copy.fertilizer;
   const Icon = type === "irrigation" ? Droplets : FlaskConical;
+  const offline = browserOffline || farmsOffline || cropsOffline;
+  const cacheKey = crop && userId
+    ? `agrivision:advisor-cache:${userId}:${type}:${crop.id}:${language}`
+    : null;
+
+  useEffect(() => {
+    const update = () => setBrowserOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!offline || !cacheKey) return;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (!cached) return;
+      const parsed = JSON.parse(cached) as { recommendation?: Recommendation; missingInputs?: string[] };
+      if (parsed.recommendation) {
+        setRecommendation(parsed.recommendation);
+        setMissingInputs(Array.isArray(parsed.missingInputs) ? parsed.missingInputs : []);
+        setError(null);
+      }
+    } catch {
+      // Invalid or blocked cache data is ignored; the live advisor remains available.
+    }
+  }, [cacheKey, offline]);
 
   const handleCropChange = (cropId: string) => {
     setSelectedCropId(cropId);
@@ -118,6 +153,23 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
       return;
     }
 
+    if (offline) {
+      try {
+        const cached = cacheKey ? localStorage.getItem(cacheKey) : null;
+        const parsed = cached ? JSON.parse(cached) as { recommendation?: Recommendation; missingInputs?: string[] } : null;
+        if (parsed?.recommendation) {
+          setRecommendation(parsed.recommendation);
+          setMissingInputs(Array.isArray(parsed.missingInputs) ? parsed.missingInputs : []);
+          setError(null);
+          return;
+        }
+      } catch {
+        // Fall through to the offline message below.
+      }
+      setError("You are offline and no saved advice is available for this crop yet.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setRecommendation(null);
@@ -139,6 +191,17 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
       }
       setMissingInputs(payload.recommendation.missingData);
       setRecommendation(payload.recommendation);
+      if (cacheKey) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            recommendation: payload.recommendation,
+            missingInputs: payload.recommendation.missingData,
+            savedAt: Date.now(),
+          }));
+        } catch {
+          // The new advice is still shown even if the browser cannot save it.
+        }
+      }
     } catch (requestError) {
       setError(requestError instanceof Error && requestError.name === "TimeoutError"
         ? copy.tryAgainNetwork
@@ -165,6 +228,7 @@ export function AgronomyAdvisor({ type }: AgronomyAdvisorProps) {
         <header>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-white"><Icon className="h-7 w-7 text-emerald-400" />{title}</h1>
           <p className="mt-1 text-sm text-slate-400">{copy.description}</p>
+          <div className="mt-2"><OfflineModeBadge cachedData={offline} hasCachedData={farms.length > 0 && crops.length > 0} /></div>
         </header>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center">
           {needsFarm ? <MapPin className="mx-auto h-10 w-10 text-emerald-400" /> : <Sprout className="mx-auto h-10 w-10 text-emerald-400" />}

@@ -18,9 +18,15 @@ export function getGoogleOAuthConfig() {
 }
 
 export function getFirebaseProjectId() {
+  const cleanProjectId = (value: string | undefined) =>
+    (value ?? "")
+      .trim()
+      .replace(/,+\s*$/, "")
+      .replace(/^(["'])(.*)\1$/, "$2")
+      .trim();
+
   return (
-    process.env.FIREBASE_PROJECT_ID ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-    ""
-  ).trim();
+    cleanProjectId(process.env.FIREBASE_PROJECT_ID) ||
+    cleanProjectId(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)
+  );
 }

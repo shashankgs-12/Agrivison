@@ -11,9 +11,10 @@ import {
 } from "lucide-react";
 import { useWeatherStore } from "@/stores/weather-store";
 import { Button } from "@/components/ui/button";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
 
 export default function WeatherPage() {
-  const { weather, loading, error, detectGPSAndFetch } = useWeatherStore();
+  const { weather, loading, error, offlineMode, detectGPSAndFetch } = useWeatherStore();
 
   useEffect(() => {
     if (!weather) {
@@ -44,7 +45,10 @@ export default function WeatherPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {weather?.source === "fallback"
               ? `Live weather is unavailable; estimated conditions are shown for ${locationName}.`
-              : `Open-Meteo live weather API & soil moisture monitoring for ${locationName}`}
+              : offlineMode
+                ? `Saved weather data for ${locationName}`
+                : `Open-Meteo live weather API & soil moisture monitoring for ${locationName}`}
+            {" "}<OfflineModeBadge cachedData={offlineMode} hasCachedData={Boolean(weather)} />
           </p>
         </div>
 
@@ -60,7 +64,7 @@ export default function WeatherPage() {
         </Button>
       </div>
 
-      {error && (
+      {error && !(offlineMode && weather) && (
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-300">
           ⚠️ {error}
         </div>

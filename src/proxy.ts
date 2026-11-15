@@ -58,7 +58,7 @@ export default auth((req) => {
   );
 
   if (isProtectedRoute && !req.auth) {
-    return NextResponse.redirect(new URL("/login", nextUrl));
+    return NextResponse.redirect(new URL("/login", nextUrl), 307);
   }
 });
 

@@ -6,6 +6,7 @@ import {
   PROFILE_AVATAR_DATA_URL_PREFIX,
   PROFILE_AVATAR_ENDPOINT,
 } from "@/lib/auth/profile-image";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 
 export const runtime = "nodejs";
 
@@ -103,6 +104,9 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  }
+  if (isDemoUserId(session.user.id)) {
+    return NextResponse.json({ error: "The live demo is read-only." }, { status: 403 });
   }
 
   const declaredLength = Number(request.headers.get("content-length") || 0);

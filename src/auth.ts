@@ -231,6 +231,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return authorizeFirebasePhone(credentials?.idToken);
       },
     }),
+    Credentials({
+      id: "demo-farm",
+      name: "Live Demo Farm",
+      credentials: { demo: { label: "Demo access", type: "text" } },
+      async authorize(credentials) {
+        if (credentials?.demo !== "true") return null;
+        return {
+          id: "agrivision-live-demo",
+          name: "Demo Farmer",
+          email: "demo@agrivision.ai",
+          role: "FARMER" as const,
+          phone: null,
+          location: "Mandya, Karnataka",
+          subscription: "FREE" as const,
+        };
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, user, account, trigger }) {
@@ -240,6 +257,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const u = user as {
           id?: string;
           name?: string | null;
+          email?: string | null;
           image?: string | null;
           role?: "FARMER" | "ADMIN";
           phone?: string | null;
@@ -249,6 +267,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           profileComplete?: boolean;
         };
         token.id = u.id;
+        token.name = u.name;
+        token.email = u.email;
         token.picture = toSessionImage(u.image);
         token.role = u.role || "FARMER";
         token.phone = u.phone || null;
@@ -259,7 +279,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
       }
 
-      if (trigger === "update" && typeof token.id === "string") {
+      if (
+        trigger === "update" &&
+        typeof token.id === "string" &&
+        token.authProvider !== "demo-farm"
+      ) {
         const profile = await prisma.user.findUnique({
           where: { id: token.id },
           select: {
@@ -296,6 +320,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           location?: string | null;
           subscription?: "FREE" | "PREMIUM";
           authProvider?: string;
+          demoMode?: boolean;
           profileComplete?: boolean;
         };
         session.user = {
@@ -306,6 +331,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           location: t.location || null,
           subscription: t.subscription || "FREE",
           authProvider: t.authProvider,
+          demoMode: t.authProvider === "demo-farm",
           requiresProfileCompletion:
             ((t.authProvider === "google" || t.authProvider === "firebase-phone") &&
               !t.profileComplete) || false,

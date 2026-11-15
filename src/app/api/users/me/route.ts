@@ -4,12 +4,16 @@ import { profileSchema } from "@/lib/auth/validation";
 import { findUserByPhone } from "@/lib/auth/phone-lookup";
 import { prisma } from "@/lib/prisma";
 import { toSessionImage } from "@/lib/auth/profile-image";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 
 export async function PATCH(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  }
+  if (isDemoUserId(session.user.id)) {
+    return NextResponse.json({ error: "The live demo is read-only." }, { status: 403 });
   }
 
   try {

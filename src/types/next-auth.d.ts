@@ -17,6 +17,7 @@ declare module "next-auth" {
       location: string | null;
       subscription: "FREE" | "PREMIUM";
       authProvider?: string;
+      demoMode: boolean;
       requiresProfileCompletion: boolean;
     } & DefaultSession["user"];
   }

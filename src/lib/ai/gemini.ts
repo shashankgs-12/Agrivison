@@ -6,14 +6,15 @@ export { GeminiServiceError } from "@/lib/ai/gemini-model-fallback";
 
 /** The REST endpoint supplies the `models/` path segment; entries stay bare IDs. */
 export const GEMINI_IMAGE_MODELS = [
-  "gemini-3.5-flash-lite",
   "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
 ] as const;
 
 // Keep text generation on stable models recommended for new Gemini API projects.
 // Production logs reported the previous text pair as unavailable to this project.
-const GEMINI_TEXT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"] as const;
-const GEMINI_REQUEST_TIMEOUT_MS = 18_000;
+const GEMINI_TEXT_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"] as const;
+const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
+const GEMINI_TOTAL_BUDGET_MS = 55_000;
 const MAX_PROVIDER_ERROR_CHARS = 4_000;
 
 function getApiKey(): string {
@@ -69,35 +70,46 @@ class GeminiApiAttemptError extends Error {
 async function requestGeminiModel(
   requestBody: object,
   modelName: string,
-  apiKey: string
+  apiKey: string,
+  timeoutMs: number
 ): Promise<GeminiCandidate> {
   // Gemini REST takes the model name after `/models/`; do not prefix the ID itself.
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    const responseText = (await response.text()).slice(0, MAX_PROVIDER_ERROR_CHARS);
-    let message = responseText || "Gemini request failed.";
-    let providerCode = "";
-    try {
-      const parsed = JSON.parse(responseText) as GeminiErrorPayload;
-      message = parsed.error?.message || message;
-      providerCode = parsed.error?.status || "";
-    } catch {
-      // Keep a bounded plain-text provider message for failure classification only.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const responseText = (await response.text()).slice(0, MAX_PROVIDER_ERROR_CHARS);
+      let message = responseText || "Gemini request failed.";
+      let providerCode = "";
+      try {
+        const parsed = JSON.parse(responseText) as GeminiErrorPayload;
+        message = parsed.error?.message || message;
+        providerCode = parsed.error?.status || "";
+      } catch {
+        // Keep a bounded plain-text provider message for failure classification only.
+      }
+      throw new GeminiApiAttemptError(response.status, message, providerCode);
     }
-    throw new GeminiApiAttemptError(response.status, message, providerCode);
-  }
 
-  return (await response.json()) as GeminiCandidate;
+    return (await response.json()) as GeminiCandidate;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new GeminiApiAttemptError(504, "Gemini request timed out.", "TIMEOUT");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function postGeminiWithFallback(
@@ -106,9 +118,36 @@ async function postGeminiWithFallback(
   models: readonly string[]
 ): Promise<GeminiCandidate> {
   const apiKey = getApiKey();
+  const deadline = Date.now() + GEMINI_TOTAL_BUDGET_MS;
   const { value } = await runGeminiModelFallback({
     models,
-    attempt: (model) => requestGeminiModel(requestBody, model, apiKey),
+    attempt: async (model) => {
+      for (let retry = 0; retry <= 1; retry += 1) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new GeminiApiAttemptError(504, "Gemini request exceeded its time budget.", "TIMEOUT");
+        }
+        try {
+          return await requestGeminiModel(
+            requestBody,
+            model,
+            apiKey,
+            Math.min(GEMINI_REQUEST_TIMEOUT_MS, remaining)
+          );
+        } catch (error) {
+          const status = error instanceof GeminiApiAttemptError ? error.status : undefined;
+          if (retry === 0 && (status === 429 || status === 503)) {
+            const backoffMs = 500 * 2 ** retry;
+            if (deadline - Date.now() > backoffMs) {
+              await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              continue;
+            }
+          }
+          throw error;
+        }
+      }
+      throw new GeminiApiAttemptError(502, "Gemini request failed.");
+    },
     onAttempt: (model, attemptNumber, attemptLimit) => {
       console.info(
         `[Gemini] task=${task} model=${model} attempt=${attemptNumber}/${attemptLimit}`
@@ -150,29 +189,33 @@ export async function analyzeImageWithGemini(
       },
     ],
     generationConfig: {
-      responseFormat: {
-        text: {
-          mimeType: "APPLICATION_JSON",
-          schema: responseSchema,
-        },
-      },
+      responseMimeType: "application/json",
+      responseSchema,
       thinkingConfig: { thinkingLevel: "low" },
       maxOutputTokens: 2048,
     },
   };
 
-  const data = await postGeminiWithFallback(requestBody, task, GEMINI_IMAGE_MODELS);
+  const models = task === "disease-detection"
+    ? GEMINI_IMAGE_MODELS
+    : ["gemini-3.5-flash-lite", "gemini-3.8-flash"] as const;
+  const data = await postGeminiWithFallback(requestBody, task, models);
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
 export async function generateTextWithGemini(
   promptText: string,
-  task = "agronomist-chat"
+  task = "agronomist-chat",
+  responseSchema?: Record<string, unknown>
 ) {
   const requestBody = {
     contents: [{ parts: [{ text: promptText }] }],
     generationConfig: {
       thinkingConfig: { thinkingLevel: "low" },
+      ...(responseSchema ? {
+        responseMimeType: "application/json",
+        responseSchema,
+      } : {}),
     },
   };
 

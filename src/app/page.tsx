@@ -457,15 +457,15 @@ export default function HomePage() {
             © 2026 AgriVision AI. Built with ❤️ for Indian Farmers.
           </p>
           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <span className="text-slate-400">
+            <Link href="/privacy" className="transition-colors hover:text-emerald-600">
               Privacy
-            </span>
-            <span className="text-slate-400">
+            </Link>
+            <Link href="/terms" className="transition-colors hover:text-emerald-600">
               Terms
-            </span>
-            <span className="text-slate-400">
+            </Link>
+            <Link href="/contact" className="transition-colors hover:text-emerald-600">
               Contact
-            </span>
+            </Link>
           </div>
         </div>
       </footer>

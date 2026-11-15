@@ -6,6 +6,9 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useFarms } from "@/hooks/use-farms";
 import { useWeatherStore } from "@/stores/weather-store";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
+import { useAuthStore } from "@/stores/auth-store";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 
 const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
   ssr: false,
@@ -17,7 +20,8 @@ const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
 });
 
 export function FarmMap() {
-  const { farms, error: farmError } = useFarms();
+  const { farms, error: farmError, offline } = useFarms();
+  const userId = useAuthStore((state) => state.user?.uid);
   const { weather, updateLocation } = useWeatherStore();
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
 
@@ -53,13 +57,14 @@ export function FarmMap() {
             <p className="text-[10px] text-slate-500 dark:text-slate-400">
               View-only map · Click + Add Farm to map new land
             </p>
+            <div className="mt-1"><OfflineModeBadge cachedData={offline} hasCachedData={farms.length > 0} /></div>
           </div>
         </div>
-        <Link href="/farms/add">
+        {!isDemoUserId(userId) && <Link href="/farms/add">
           <span className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition-all">
             <Plus className="h-3.5 w-3.5" /> + Add Farm
           </span>
-        </Link>
+        </Link>}
       </div>
 
       {farmError && <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950/30 p-3 text-xs text-rose-200">{farmError}</p>}

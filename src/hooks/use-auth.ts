@@ -14,6 +14,8 @@ interface SessionUser {
   role?: string | null;
   location?: string | null;
   subscription?: string | null;
+  authProvider?: string;
+  demoMode?: boolean;
   requiresProfileCompletion?: boolean;
 }
 
@@ -57,6 +59,7 @@ export function useAuth() {
   const requiresProfileCompletion = Boolean(
     (session?.user as SessionUser | undefined)?.requiresProfileCompletion
   );
+  const isDemo = Boolean((session?.user as SessionUser | undefined)?.demoMode);
 
-  return { user, isAuthenticated, loading, ready, requiresProfileCompletion, session };
+  return { user, isAuthenticated, loading, ready, requiresProfileCompletion, isDemo, session };
 }

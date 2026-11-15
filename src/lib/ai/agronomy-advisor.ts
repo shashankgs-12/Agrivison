@@ -89,6 +89,43 @@ const fertilizerResultSchema = z.object({
   missingData: z.array(z.string().trim().max(160)).max(12),
 });
 
+const textField = (description: string) => ({ type: "string", description });
+const missingDataField = {
+  type: "array",
+  items: { type: "string" },
+};
+
+const irrigationResponseSchema = {
+  type: "object",
+  properties: {
+    action: { type: "string", enum: ["IRRIGATE_NOW", "WAIT", "REDUCE", "INCREASE", "INSUFFICIENT_DATA"] },
+    headline: textField("Short user-facing action headline"),
+    recommendation: textField("Practical irrigation recommendation"),
+    why: textField("Explanation based only on supplied farm data"),
+    timing: textField("When to act or check again"),
+    amountGuidance: textField("Safe, conditional amount or frequency guidance"),
+    missingData: missingDataField,
+  },
+  required: ["action", "headline", "recommendation", "why", "timing", "amountGuidance", "missingData"],
+  additionalProperties: false,
+};
+
+const fertilizerResponseSchema = {
+  type: "object",
+  properties: {
+    nutrientFocus: textField("Nutrient or soil issue to review"),
+    recommendation: textField("Practical fertilizer guidance"),
+    timing: textField("Appropriate timing"),
+    applicationGuidance: textField("Safe application considerations"),
+    why: textField("Explanation based only on supplied farm data"),
+    diseaseConsideration: textField("How linked disease data affects advice"),
+    caution: textField("Safety, soil-test, and product-label caution"),
+    missingData: missingDataField,
+  },
+  required: ["nutrientFocus", "recommendation", "timing", "applicationGuidance", "why", "diseaseConsideration", "caution", "missingData"],
+  additionalProperties: false,
+};
+
 export type AgronomyAdvisorType = "irrigation" | "fertilizer";
 
 export class AgronomyAdvisorInputError extends Error {
@@ -163,7 +200,8 @@ export async function generateAgronomyAdvice(type: AgronomyAdvisorType, rawConte
 
   const response = await generateTextWithGemini(
     createPrompt(type, contextResult.data, language),
-    `${type}-advisor`
+    `${type}-advisor`,
+    type === "irrigation" ? irrigationResponseSchema : fertilizerResponseSchema
   );
   if (!response) throw new AgronomyAdvisorOutputError();
 

@@ -1,21 +1,28 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  StatCards,
-  FarmMap,
-  WeatherWidget,
-  IrrigationAdvice,
-  RecentActivity,
-  AlertsPanel,
-  QuickActions,
-} from "@/components/dashboard";
+import { StatCards } from "@/components/dashboard/stat-card";
+import { RecentActivity } from "@/components/dashboard/recent-activity";
+import { AlertsPanel } from "@/components/dashboard/alerts-panel";
+import { QuickActions } from "@/components/dashboard/quick-actions";
 import { useAuthStore } from "@/stores/auth-store";
 import { useLanguage } from "@/hooks/use-language";
 import { getDashboardText } from "@/lib/i18n/localization";
+import { isDemoUserId } from "@/lib/demo/demo-data";
+
+const FarmMap = dynamic(() => import("@/components/dashboard/leaflet-farm-map").then((module) => module.LeafletFarmMap), {
+  loading: () => <div role="status" className="flex h-[420px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-sm text-slate-400">Loading farm map…</div>,
+});
+const WeatherWidget = dynamic(() => import("@/components/dashboard/weather-widget").then((module) => module.WeatherWidget), {
+  loading: () => <div role="status" className="h-64 animate-pulse rounded-2xl border border-slate-800 bg-slate-900" />,
+});
+const IrrigationAdvice = dynamic(() => import("@/components/dashboard/irrigation-advice").then((module) => module.IrrigationAdvice), {
+  loading: () => <div role="status" className="h-52 animate-pulse rounded-2xl border border-slate-800 bg-slate-900" />,
+});
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -41,12 +48,12 @@ export default function DashboardPage() {
               {copy.summary}
             </p>
           </div>
-          <Link href="/farms/add" className="self-start sm:self-auto">
+          {!isDemoUserId(user?.uid) && <Link href="/farms/add" className="self-start sm:self-auto">
             <Button size="sm" className="min-h-11 rounded-xl bg-emerald-500 px-5 font-bold text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400">
               <Plus className="mr-1 h-4 w-4" />
               {copy.addFarm}
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
 

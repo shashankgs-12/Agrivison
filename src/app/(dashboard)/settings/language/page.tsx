@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Globe, Languages, Check, Save } from "lucide-react";
+import { ArrowLeft, Languages, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguageStore, LanguagePreferences } from "@/stores/language-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
@@ -71,7 +71,7 @@ export default function LanguageSettingsPage() {
       <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3 dark:bg-emerald-950/30 dark:border-emerald-800">
         <Languages className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
         <p className="text-xs text-emerald-900 leading-relaxed dark:text-emerald-200">
-          <strong>Smart Translation System:</strong> When Gemini AI diagnoses a crop disease or provides plant advice, it generates responses in all supported languages simultaneously. You can set different languages for different modules!
+          <strong>Language preferences:</strong> Your selection is saved automatically on this device. AI features receive the selected language and return their response in that language.
         </p>
       </div>
 
@@ -106,10 +106,10 @@ export default function LanguageSettingsPage() {
         ))}
       </div>
 
-      <Button className="w-full" size="lg">
-        <Save className="h-4 w-4" />
-        Save Language Preferences
-      </Button>
+      <p role="status" className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+        <Check className="h-4 w-4" />
+        Language preferences are saved automatically.
+      </p>
     </div>
   );
 }

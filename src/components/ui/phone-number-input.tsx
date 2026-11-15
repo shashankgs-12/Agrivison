@@ -57,6 +57,7 @@ const COUNTRIES = [
 type Country = (typeof COUNTRIES)[number];
 type CountryMenuPosition = {
   left: number;
+  width: number;
   offset: number;
   side: "above" | "below";
   maxHeight: number;
@@ -130,7 +131,7 @@ export function PhoneNumberInput({
       const rect = button.getBoundingClientRect();
       const gap = 8;
       const viewportPadding = 12;
-      const desiredHeight = 440;
+      const desiredHeight = 380;
       const spaceAbove = Math.max(0, rect.top - gap - viewportPadding);
       const spaceBelow = Math.max(
         0,
@@ -139,13 +140,14 @@ export function PhoneNumberInput({
       const side =
         spaceBelow >= desiredHeight || spaceBelow >= spaceAbove ? "below" : "above";
       const availableSpace = side === "below" ? spaceBelow : spaceAbove;
-      const menuWidth = Math.min(352, Math.max(0, window.innerWidth - 32));
+      const menuWidth = Math.min(320, Math.max(0, window.innerWidth - 24));
 
       setCountryMenuPosition({
         left: Math.max(
-          16,
-          Math.min(rect.left, window.innerWidth - menuWidth - 16)
+          12,
+          Math.min(rect.left, window.innerWidth - menuWidth - 12)
         ),
+        width: menuWidth,
         offset: side === "below" ? rect.bottom + gap : window.innerHeight - rect.top + gap,
         side,
         maxHeight: Math.max(160, Math.min(desiredHeight, availableSpace)),
@@ -271,6 +273,7 @@ export function PhoneNumberInput({
             style={{
               position: "fixed",
               left: countryMenuPosition.left,
+              width: countryMenuPosition.width,
               top:
                 countryMenuPosition.side === "below"
                   ? countryMenuPosition.offset
@@ -281,23 +284,18 @@ export function PhoneNumberInput({
                   : undefined,
               maxHeight: countryMenuPosition.maxHeight,
             }}
-            className="z-[100] flex w-[22rem] max-w-[calc(100vw_-_2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.24)] ring-1 ring-black/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:ring-white/5"
+            className="z-[100] flex max-w-[calc(100vw_-_1.5rem)] flex-col overflow-hidden rounded-2xl border border-emerald-900/20 bg-white shadow-[0_18px_48px_rgba(2,6,23,0.38)] ring-1 ring-black/5 dark:border-slate-700/90 dark:bg-[#0b1220] dark:ring-white/5"
           >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-              <div>
-                <div className="text-sm font-bold text-slate-900 dark:text-white">
-                  Choose a country
-                </div>
-                <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  Select the calling code for your number
-                </div>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-3.5 py-2.5 dark:border-slate-800">
+              <div className="text-sm font-bold text-slate-900 dark:text-white">
+                Choose country
               </div>
-              <span className="mt-0.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900">
-                {COUNTRIES.length} countries
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300">
+                {COUNTRIES.length} codes
               </span>
             </div>
 
-            <div className="shrink-0 p-3 pb-2">
+            <div className="shrink-0 p-2.5 pb-2">
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -334,24 +332,24 @@ export function PhoneNumberInput({
                       countryOptionRefs.current[firstCountry.code]?.focus();
                     }
                   }}
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950/70 dark:text-white dark:placeholder:text-slate-500"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
                 />
               </div>
             </div>
 
-            <div className="shrink-0 px-3 pb-2">
-              <div className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+            <div className="shrink-0 px-2.5 pb-2">
+              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
                 <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                 Popular
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                 {POPULAR_COUNTRIES.map((country) => (
                   <button
                     key={country.code}
                     type="button"
                     title={`${country.name} ${country.dial}`}
                     onClick={() => selectCountry(country.code)}
-                    className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                    className={`inline-flex min-h-7 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                       selectedCountry.code === country.code
                         ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200"
                         : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/70 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40"
@@ -364,7 +362,7 @@ export function PhoneNumberInput({
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+            <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-3.5 py-1.5 dark:border-slate-800">
               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
                 {countrySearch ? "Search results" : "All countries"}
               </span>
@@ -411,24 +409,19 @@ export function PhoneNumberInput({
                           moveCountryFocus(country.code, "last");
                         }
                       }}
-                      className={`group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
+                      className={`group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
                         selected
                           ? "bg-emerald-50 text-slate-900 dark:bg-emerald-950/50 dark:text-white"
                           : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/80"
                       }`}
                     >
-                      <span className="flex h-9 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-xl leading-none shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-lg leading-none ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700">
                         {country.flag}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">
-                          {country.name}
-                        </span>
-                        <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                          {country.code}
-                        </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                        {country.name}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                         {country.dial}
                       </span>
                       {selected && (

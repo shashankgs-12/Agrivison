@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateCentroid, calculateGeodesicArea, calculatePerimeter, toGeoJSONPolygon } from "@/lib/gis/geo-utils";
+import { DEMO_FARMS, isDemoUserId } from "@/lib/demo/demo-data";
 
 const pointSchema = z.tuple([
   z.number().finite().min(-90).max(90),
@@ -53,6 +54,7 @@ export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) return NextResponse.json({ farms: DEMO_FARMS });
 
   try {
     const farms = await prisma.farm.findMany({
@@ -71,6 +73,9 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) {
+    return NextResponse.json({ error: "The live demo is read-only. Create an account to add or edit farms." }, { status: 403 });
+  }
 
   let payload: unknown;
   try { payload = await request.json(); } catch { return NextResponse.json({ error: "A valid farm record is required." }, { status: 400 }); }

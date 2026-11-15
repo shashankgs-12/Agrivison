@@ -12,9 +12,10 @@ import { useWeatherStore } from "@/stores/weather-store";
 import Link from "next/link";
 import { useLanguage } from "@/hooks/use-language";
 import { getDashboardText } from "@/lib/i18n/localization";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
 
 export function WeatherWidget() {
-  const { weather, loading, detectGPSAndFetch } = useWeatherStore();
+  const { weather, loading, offlineMode, detectGPSAndFetch } = useWeatherStore();
   const { language } = useLanguage();
   const copy = getDashboardText(language);
 
@@ -33,6 +34,7 @@ export function WeatherWidget() {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+      <div className="px-4 pt-3"><OfflineModeBadge cachedData={offlineMode} hasCachedData={Boolean(weather)} /></div>
       {/* Header Banner */}
       <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-green-700 p-5 text-white relative overflow-hidden">
         <div className="flex items-center justify-between gap-2 mb-2 relative z-10">

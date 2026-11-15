@@ -29,7 +29,6 @@ import type { ConfirmationResult } from "firebase/auth";
 import { auth as firebaseAuth, isFirebasePhoneAuthConfigured } from "@/lib/firebase/config";
 
 export default function LoginPage() {
-  const showDemoLogin = process.env.NODE_ENV !== "production";
   const { data: currentSession, status: sessionStatus } = useSession();
   const setUser = useAuthStore((state) => state.setUser);
 
@@ -156,10 +155,20 @@ export default function LoginPage() {
         cause && typeof cause === "object" && "code" in cause
           ? String(cause.code)
           : "";
+      const errorName =
+        cause && typeof cause === "object" && "name" in cause
+          ? String(cause.name)
+          : "UnknownError";
+      console.warn("Firebase phone sign-in request failed", {
+        code: /^auth\/[a-z0-9-]+$/.test(code) ? code : undefined,
+        name: errorName,
+      });
       if (code === "auth/unauthorized-domain") {
-        setErrorMsg("This domain is not authorized for Firebase phone sign-in. Add it in Firebase Authentication settings.");
+        setErrorMsg(`Firebase does not allow phone sign-in from ${window.location.hostname}. Add this hostname under Authentication → Settings → Authorized domains.`);
       } else if (code === "auth/operation-not-allowed") {
         setErrorMsg("Phone sign-in is disabled for this Firebase project. Enable the Phone provider in Firebase Authentication.");
+      } else if (code === "auth/billing-not-enabled") {
+        setErrorMsg("Firebase requires billing to send SMS from this project. Enable billing in Firebase Console, then try again.");
       } else if (code === "auth/too-many-requests" || code === "auth/quota-exceeded") {
         setErrorMsg("Firebase temporarily limited SMS requests. Wait a while or use a Firebase test phone number.");
       } else if (code === "auth/network-request-failed") {
@@ -172,7 +181,10 @@ export default function LoginPage() {
         setErrorMsg("Firebase rejected this app configuration. Check the web app settings and authorized domains in Firebase Console.");
       } else {
         const safeCode = /^auth\/[a-z0-9-]+$/.test(code) ? ` (${code})` : "";
-        setErrorMsg(`Could not send the verification code${safeCode}. Check the phone number, reCAPTCHA, and Firebase SMS settings, then try again.`);
+        const safeName = !safeCode && /^[A-Za-z][A-Za-z0-9]*Error$/.test(errorName)
+          ? ` (${errorName})`
+          : "";
+        setErrorMsg(`Could not send the verification code${safeCode || safeName}. Check the phone number, reCAPTCHA, and Firebase SMS settings, then try again.`);
       }
     } finally {
       setIsPhoneLoading(false);
@@ -286,27 +298,22 @@ export default function LoginPage() {
   const handleQuickDemoLogin = async () => {
     setIsDemoLoading(true);
     setErrorMsg(null);
-    const demoEmail = "farmer@agrivision.ai";
-    const demoPass = "password123";
-    setEmail(demoEmail);
-    setPassword(demoPass);
 
     try {
-      // Sync NextAuth credentials session
-      const result = await signIn("credentials", {
-        email: demoEmail,
-        password: demoPass,
+      const result = await signIn("demo-farm", {
+        demo: "true",
+        callbackUrl: "/dashboard",
         redirect: false,
       });
       const syncedSession = await syncUserFromSession();
       if (!result?.ok || result.error || !syncedSession) {
         setIsDemoLoading(false);
-        setErrorMsg("Demo sign-in is unavailable. Please sign in with a registered account.");
+        setErrorMsg("The live demo could not be started. Please try again.");
         return;
       }
     } catch {
       setIsDemoLoading(false);
-      setErrorMsg("Demo sign-in is unavailable. Please sign in with a registered account.");
+      setErrorMsg("The live demo could not be started. Please try again.");
       return;
     }
 
@@ -331,9 +338,9 @@ export default function LoginPage() {
         </div>
 
         {/* Quick Demo Login Preset Buttons */}
-        {showDemoLogin && <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl">
+        <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl">
           <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 mb-1.5 flex items-center gap-1.5">
-            <UserCheck className="h-3.5 w-3.5" /> 1-Click Quick Demo Sign In
+            <UserCheck className="h-3.5 w-3.5" /> Explore a read-only sample farm
           </div>
           <div>
             <button
@@ -343,10 +350,10 @@ export default function LoginPage() {
               aria-busy={isDemoLoading}
               className="w-full min-h-[44px] touch-manipulation select-none py-2 px-3 text-xs font-bold bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 active:bg-emerald-200 dark:hover:bg-zinc-700 dark:active:bg-zinc-600 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-70 shadow-sm"
             >
-              {isDemoLoading ? "Signing in…" : "Demo Farmer Sign In"}
+              {isDemoLoading ? "Opening demo farm…" : "Try Live Demo Farm"}
             </button>
           </div>
-        </div>}
+        </div>
 
         {/* Success Banner */}
         {successMessage && (
@@ -357,7 +364,11 @@ export default function LoginPage() {
         )}
 
         {/* Method toggle */}
-        <div role="tablist" aria-label="Sign-in method" className="flex bg-zinc-100 dark:bg-zinc-900 rounded-xl p-1 mb-4 sm:mb-6">
+        <div
+          role="tablist"
+          aria-label="Sign-in method"
+          className="mb-4 flex rounded-xl border border-zinc-200/80 bg-zinc-100/70 p-1 shadow-inner shadow-black/5 dark:border-zinc-800 dark:bg-[#090d0b] sm:mb-6"
+        >
           <button
             type="button"
             role="tab"
@@ -372,14 +383,14 @@ export default function LoginPage() {
               setPhoneCodeSent(false);
               setVerificationCode("");
             }}
-            className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
+            className={`flex h-10 min-h-10 flex-1 touch-manipulation select-none items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 active:scale-[0.99] ${
               loginMethod === "email"
-                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
-                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
+                ? "bg-gradient-to-b from-emerald-900/80 to-emerald-950 text-emerald-50 shadow-[0_2px_12px_rgba(16,185,129,0.16)] ring-1 ring-inset ring-emerald-500/30"
+                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-emerald-100"
             }`}
           >
-            <Mail className="h-3.5 w-3.5" />
-            Email
+            <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="whitespace-nowrap">Email</span>
           </button>
           <button
             type="button"
@@ -390,14 +401,14 @@ export default function LoginPage() {
               setErrorMsg(null);
               setSuccessMessage(false);
             }}
-            className={`flex-1 min-h-[44px] touch-manipulation select-none flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer active:scale-[0.99] ${
+            className={`flex h-10 min-h-10 flex-1 touch-manipulation select-none items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 active:scale-[0.99] ${
               loginMethod === "phone"
-                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-white"
-                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100"
+                ? "bg-gradient-to-b from-emerald-900/80 to-emerald-950 text-emerald-50 shadow-[0_2px_12px_rgba(16,185,129,0.16)] ring-1 ring-inset ring-emerald-500/30"
+                : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-emerald-100"
             }`}
           >
-            <Phone className="h-3.5 w-3.5" />
-            Phone OTP
+            <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="whitespace-nowrap">Phone OTP</span>
           </button>
         </div>
 
@@ -650,16 +661,6 @@ export default function LoginPage() {
           <Globe className="h-5 w-5 text-[#00ab41]" />
           {isGoogleLoading ? "Connecting to Google…" : "Continue with Google"}
         </Button>
-        {googleProviderStatus !== "available" && (
-          <p className="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-300" role="status" aria-live="polite">
-            {googleProviderStatus === "checking"
-              ? "Checking Google sign-in availability. Email and Phone OTP are ready to use."
-              : googleProviderStatus === "timed-out"
-                ? "Google sign-in availability check timed out. You can still try Google or use Email / Phone OTP."
-                : "Google sign-in is not configured. Configure a Google OAuth Web client in .env.local; Email and Phone OTP remain available."}
-          </p>
-        )}
-
         {/* Sign up link */}
         <p className="text-center text-xs text-zinc-600 mt-4 sm:mt-6 dark:text-zinc-400 font-medium">
           Don&apos;t have an account?{" "}

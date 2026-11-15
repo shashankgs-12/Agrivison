@@ -10,11 +10,42 @@ async function apiError(response: Response, fallback: string) {
   return new Error(payload?.error || fallback);
 }
 
-async function fetchCrops(): Promise<Crop[]> {
-  const response = await fetch("/api/crops", { cache: "no-store" });
-  if (!response.ok) throw await apiError(response, "Crop records could not be loaded.");
-  const payload = await response.json() as { crops: Crop[] };
-  return payload.crops;
+interface CropQueryData {
+  crops: Crop[];
+  offline: boolean;
+}
+
+function getCropCache(userId: string): Crop[] | null {
+  try {
+    const raw = localStorage.getItem(`agrivision:crop-cache:${userId}`);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as { crops?: unknown };
+    return Array.isArray(cached.crops) ? cached.crops as Crop[] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCrops(userId: string): Promise<CropQueryData> {
+  const cachedCrops = typeof window !== "undefined" ? getCropCache(userId) : null;
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (cachedCrops) return { crops: cachedCrops, offline: true };
+    throw new Error("You are offline and no saved crop records are available on this device.");
+  }
+  try {
+    const response = await fetch("/api/crops", { cache: "no-store" });
+    if (!response.ok) throw await apiError(response, "Crop records could not be loaded.");
+    const payload = await response.json() as { crops: Crop[] };
+    try {
+      localStorage.setItem(`agrivision:crop-cache:${userId}`, JSON.stringify({ crops: payload.crops, savedAt: Date.now() }));
+    } catch {
+      // Use the server response even if local storage is unavailable.
+    }
+    return { crops: payload.crops, offline: false };
+  } catch (error) {
+    if (cachedCrops) return { crops: cachedCrops, offline: true };
+    throw error;
+  }
 }
 
 export function useCrops(farmId?: string) {
@@ -22,7 +53,7 @@ export function useCrops(farmId?: string) {
   const queryClient = useQueryClient();
   const cropsQuery = useQuery({
     queryKey: ["crops", userId],
-    queryFn: fetchCrops,
+    queryFn: () => fetchCrops(userId!),
     enabled: Boolean(userId),
     staleTime: 45_000,
   });
@@ -50,7 +81,7 @@ export function useCrops(farmId?: string) {
     void queryClient.invalidateQueries({ queryKey: ["crops"] });
   }, [queryClient]);
 
-  const crops = userId ? cropsQuery.data ?? [] : [];
+  const crops = userId ? cropsQuery.data?.crops ?? [] : [];
   const userCrops = farmId ? crops.filter((crop) => crop.farmId === farmId) : crops;
   const error = cropsQuery.error instanceof Error ? cropsQuery.error.message : null;
 
@@ -61,6 +92,7 @@ export function useCrops(farmId?: string) {
     deleteCrop,
     loading: Boolean(userId) && cropsQuery.isPending,
     error,
+    offline: cropsQuery.data?.offline ?? false,
     refresh,
     resetToZero: () => undefined,
   };

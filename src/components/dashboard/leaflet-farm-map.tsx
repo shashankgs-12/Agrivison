@@ -8,6 +8,7 @@ import { useWeatherStore } from "@/stores/weather-store";
 import type { MapMode } from "@/components/maps/gis-map-engine";
 import { useLanguage } from "@/hooks/use-language";
 import { getDashboardText } from "@/lib/i18n/localization";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
 
 const GISMapEngine = dynamic(() => import("@/components/maps/gis-map-engine"), {
   ssr: false,
@@ -25,7 +26,7 @@ function MapLoadingState() {
 }
 
 export function LeafletFarmMap() {
-  const { farms } = useFarms();
+  const { farms, offline: farmsOffline } = useFarms();
   const { weather, updateLocation } = useWeatherStore();
   const { language } = useLanguage();
   const copy = getDashboardText(language);
@@ -55,6 +56,7 @@ export function LeafletFarmMap() {
             <p className="text-[10px] text-slate-500 dark:text-slate-400">
               📍 {weather?.locationName || copy.selectedLocation} · {copy.satelliteHint}
             </p>
+            <div className="mt-1"><OfflineModeBadge cachedData={farmsOffline} hasCachedData={farms.length > 0} /></div>
           </div>
         </div>
 

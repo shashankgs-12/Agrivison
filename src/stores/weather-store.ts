@@ -1,24 +1,41 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { DetailedWeatherData } from "@/lib/weather/api";
 import { reverseGeocodeAddress } from "@/lib/gis/geo-utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface WeatherState {
   weather: DetailedWeatherData | null;
   loading: boolean;
   error: string | null;
   userCoords: { lat: number; lng: number } | null;
+  cachedAt: number | null;
+  offlineMode: boolean;
+  ownerId: string | null;
+  synchronizeOwner: () => void;
   fetchWeather: (lat?: number, lng?: number, locationNameOverride?: string) => Promise<void>;
   updateLocation: (lat: number, lng: number, locationNameOverride?: string) => Promise<void>;
   detectGPSAndFetch: () => Promise<void>;
 }
 
-export const useWeatherStore = create<WeatherState>((set, get) => ({
+export const useWeatherStore = create<WeatherState>()(persist((set, get) => ({
   weather: null,
   loading: false,
   error: null,
   userCoords: null,
+  cachedAt: null,
+  offlineMode: false,
+  ownerId: null,
+
+  synchronizeOwner: () => {
+    const ownerId = useAuthStore.getState().user?.uid ?? null;
+    if (ownerId !== get().ownerId) {
+      set({ weather: null, userCoords: null, cachedAt: null, offlineMode: false, error: null, ownerId });
+    }
+  },
 
   fetchWeather: async (lat = 12.9716, lng = 77.5946, locationNameOverride) => {
+    get().synchronizeOwner();
     set({ loading: true, error: null });
     try {
       const res = await fetch(`/api/weather?lat=${lat}&lng=${lng}`, {
@@ -52,6 +69,8 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
           weather: updatedWeather,
           loading: false,
           userCoords: { lat, lng },
+          cachedAt: Date.now(),
+          offlineMode: false,
         });
       } else {
         throw new Error(data.error || "Invalid weather payload");
@@ -59,11 +78,16 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
     } catch (err: unknown) {
       console.error("weatherStore fetch error:", err);
       const message = err instanceof Error ? err.message : "Failed to load weather data";
-      set({ error: message, loading: false });
+      set({
+        error: message,
+        loading: false,
+        offlineMode: Boolean(get().weather),
+      });
     }
   },
 
   updateLocation: async (lat: number, lng: number, locationNameOverride?: string) => {
+    get().synchronizeOwner();
     // Only re-fetch if coords changed or weather is not loaded yet
     const current = get().userCoords;
     if (
@@ -78,6 +102,7 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   },
 
   detectGPSAndFetch: async () => {
+    get().synchronizeOwner();
     const defaultWeatherRequest = get().weather
       ? Promise.resolve()
       : get().fetchWeather(12.5218, 76.8951, "Mandya District, KA");
@@ -107,4 +132,13 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
       await get().fetchWeather(latitude, longitude);
     }
   },
+}), {
+  name: "agrivision-weather-cache",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    weather: state.weather,
+    userCoords: state.userCoords,
+    cachedAt: state.cachedAt,
+    ownerId: state.ownerId,
+  }),
 }));

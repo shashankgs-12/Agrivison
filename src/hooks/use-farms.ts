@@ -18,11 +18,43 @@ async function apiError(response: Response, fallback: string) {
   return new Error(payload?.error || fallback);
 }
 
-async function fetchFarms(): Promise<Farm[]> {
-  const response = await fetch("/api/farms", { cache: "no-store" });
-  if (!response.ok) throw await apiError(response, "Farm records could not be loaded.");
-  const payload = await response.json() as { farms: Farm[] };
-  return payload.farms;
+interface FarmQueryData {
+  farms: Farm[];
+  offline: boolean;
+}
+
+function getFarmCache(userId: string): Farm[] | null {
+  try {
+    const raw = localStorage.getItem(`agrivision:farm-cache:${userId}`);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as { farms?: unknown };
+    return Array.isArray(cached.farms) ? cached.farms as Farm[] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFarms(userId: string): Promise<FarmQueryData> {
+  const cachedFarms = typeof window !== "undefined" ? getFarmCache(userId) : null;
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (cachedFarms) return { farms: cachedFarms, offline: true };
+    throw new Error("You are offline and no saved farm records are available on this device.");
+  }
+
+  try {
+    const response = await fetch("/api/farms", { cache: "no-store" });
+    if (!response.ok) throw await apiError(response, "Farm records could not be loaded.");
+    const payload = await response.json() as { farms: Farm[] };
+    try {
+      localStorage.setItem(`agrivision:farm-cache:${userId}`, JSON.stringify({ farms: payload.farms, savedAt: Date.now() }));
+    } catch {
+      // Storage can be full or disabled; the live response is still usable.
+    }
+    return { farms: payload.farms, offline: false };
+  } catch (error) {
+    if (cachedFarms) return { farms: cachedFarms, offline: true };
+    throw error;
+  }
 }
 
 export function useFarms() {
@@ -30,7 +62,7 @@ export function useFarms() {
   const queryClient = useQueryClient();
   const farmsQuery = useQuery({
     queryKey: ["farms", userId],
-    queryFn: fetchFarms,
+    queryFn: () => fetchFarms(userId!),
     enabled: Boolean(userId),
     staleTime: 45_000,
   });
@@ -59,7 +91,7 @@ export function useFarms() {
     void queryClient.invalidateQueries({ queryKey: ["crops"] });
   }, [queryClient]);
 
-  const farms = userId ? farmsQuery.data ?? [] : [];
+  const farms = userId ? farmsQuery.data?.farms ?? [] : [];
   const error = farmsQuery.error instanceof Error ? farmsQuery.error.message : null;
 
   return {
@@ -69,6 +101,7 @@ export function useFarms() {
     deleteFarm,
     loading: Boolean(userId) && farmsQuery.isPending,
     error,
+    offline: farmsQuery.data?.offline ?? false,
     refresh,
     resetToZero: () => undefined,
   };

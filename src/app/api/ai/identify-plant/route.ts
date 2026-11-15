@@ -5,6 +5,7 @@ export const maxDuration = 60;
 import { PROMPTS } from "@/lib/ai/prompts";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 import { z } from "zod";
 
 const PLANT_RESULT_JSON_SCHEMA = {
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     // Keep history persistence off the critical path so a slow database does
     // not hold the successful identification response open.
-    after(async () => {
+    if (!isDemoUserId(session.user.id)) after(async () => {
       try {
         let validUserId: string | null = null;
         if (session.user.id) {

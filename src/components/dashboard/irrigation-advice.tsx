@@ -10,11 +10,12 @@ import { useWeatherStore } from "@/stores/weather-store";
 import { getCropLifecycleInfo } from "@/lib/crops/lifecycle";
 import { useLanguage } from "@/hooks/use-language";
 import { getDashboardText } from "@/lib/i18n/localization";
+import { OfflineModeBadge } from "@/components/shared/offline-mode-badge";
 
 export function IrrigationAdvice() {
-  const { farms } = useFarms();
-  const { crops } = useCrops();
-  const { weather } = useWeatherStore();
+  const { farms, offline: farmsOffline } = useFarms();
+  const { crops, offline: cropsOffline } = useCrops();
+  const { weather, offlineMode: weatherOffline } = useWeatherStore();
   const { language } = useLanguage();
   const copy = getDashboardText(language);
   const liveWeather = weather?.source === "live" ? weather : null;
@@ -37,6 +38,7 @@ export function IrrigationAdvice() {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="px-4 pt-3"><OfflineModeBadge cachedData={farmsOffline || cropsOffline || weatherOffline} hasCachedData={farms.length > 0 || crops.length > 0 || Boolean(weather)} /></div>
       <div className="space-y-3 border-b border-slate-100 p-4 dark:border-slate-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2"><Droplets className="h-5 w-5 text-blue-500" /><h3 className="text-sm font-bold text-slate-900 dark:text-white">{copy.irrigation}</h3></div>

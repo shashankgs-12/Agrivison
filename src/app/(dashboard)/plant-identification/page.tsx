@@ -133,7 +133,7 @@ export default function PlantIdentificationPage() {
           image: selectedImage,
           language: currentLang,
         }),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(55_000),
       });
 
       const data = await res.json().catch(() => ({}));

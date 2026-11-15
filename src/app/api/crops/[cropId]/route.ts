@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ cropId: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) return NextResponse.json({ error: "The live demo is read-only." }, { status: 403 });
   const { cropId } = await params;
   if (!cropId || cropId.length > 100) return NextResponse.json({ error: "The selected crop ID is invalid." }, { status: 400 });
   try {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -28,6 +28,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { SUPPORTED_LANGUAGES } from "@/lib/utils/constants";
 import { prepareImageForAnalysis } from "@/lib/ai/image-processing";
 import { useCrops } from "@/hooks/use-crops";
+import { clearQueuedDiseaseScan, getQueuedDiseaseScan, saveQueuedDiseaseScan } from "@/lib/ai/offline-queue";
 
 const CameraModal = dynamic(
   () => import("@/components/shared/camera-modal").then((module) => module.CameraModal),
@@ -36,7 +37,7 @@ const CameraModal = dynamic(
 
 const SCANNING_STAGES = [
   "Preparing the leaf image...",
-  "Analyzing symptoms with Gemini 3.5 Flash-Lite...",
+  "Analyzing symptoms with Gemini 3.8 Flash...",
   "Checking disease patterns...",
   "Preparing the diagnosis...",
 ];
@@ -66,6 +67,8 @@ export default function DiseaseDetectionPage() {
   const [stageIndex, setStageIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<DiseaseDiagnosis | null>(null);
+  const [queuedScan, setQueuedScan] = useState(false);
+  const [queuedLanguage, setQueuedLanguage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { preferences, setPreference } = useLanguageStore();
@@ -77,6 +80,17 @@ export default function DiseaseDetectionPage() {
   const selectedLinkedCropId = crops.some((crop) => crop.id === linkedCropId)
     ? linkedCropId
     : crops.length === 1 ? crops[0].id : "";
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const pending = getQueuedDiseaseScan(user.uid);
+    if (!pending) return;
+    setSelectedImage(pending.image);
+    setLinkedCropId(pending.cropId || "");
+    setQueuedLanguage(pending.language);
+    setQueuedScan(true);
+    setErrorMsg("A compressed scan is saved on this device. Reconnect to the internet and retry it.");
+  }, [user?.uid]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -97,6 +111,9 @@ export default function DiseaseDetectionPage() {
 
     setProcessingImage(true);
     setErrorMsg(null);
+    setQueuedScan(false);
+    setQueuedLanguage(null);
+    if (user?.uid) clearQueuedDiseaseScan(user.uid);
     try {
       setSelectedImage(await prepareImageForAnalysis(file));
       setResult(null);
@@ -111,6 +128,9 @@ export default function DiseaseDetectionPage() {
   const handleCameraCapture = async (base64Image: string) => {
     setProcessingImage(true);
     setErrorMsg(null);
+    setQueuedScan(false);
+    setQueuedLanguage(null);
+    if (user?.uid) clearQueuedDiseaseScan(user.uid);
     try {
       setSelectedImage(await prepareImageForAnalysis(base64Image));
       setResult(null);
@@ -127,6 +147,24 @@ export default function DiseaseDetectionPage() {
       return;
     }
 
+    const languageForScan = queuedLanguage || currentLang;
+    const saveForOfflineRetry = () => {
+      const saved = user?.uid ? saveQueuedDiseaseScan(user.uid, {
+        image: selectedImage,
+        language: languageForScan,
+        cropId: selectedLinkedCropId || undefined,
+      }) : false;
+      setQueuedScan(saved);
+      setQueuedLanguage(saved ? languageForScan : null);
+      setErrorMsg(saved
+        ? "You are offline. The compressed scan is saved on this device and ready to retry when you reconnect."
+        : "You are offline. This scan could not be saved in browser storage; keep this page open and retry when you reconnect.");
+    };
+    if (!navigator.onLine) {
+      saveForOfflineRetry();
+      return;
+    }
+
     setAnalyzing(true);
     setErrorMsg(null);
     setStageIndex(0);
@@ -139,8 +177,8 @@ export default function DiseaseDetectionPage() {
       const res = await fetch("/api/ai/detect-disease", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage, language: currentLang }),
-        signal: AbortSignal.timeout(45_000),
+        body: JSON.stringify({ image: selectedImage, language: languageForScan }),
+        signal: AbortSignal.timeout(55_000),
       });
 
       let data: {
@@ -155,6 +193,8 @@ export default function DiseaseDetectionPage() {
       }
 
       if (!res.ok || !data.success) {
+        if (user?.uid) clearQueuedDiseaseScan(user.uid);
+        setQueuedScan(false);
         setResult(null);
         setErrorMsg(
           data.error || "Disease detection failed. Please try again with a clear photo."
@@ -165,6 +205,9 @@ export default function DiseaseDetectionPage() {
       if (!data.result || typeof data.result !== "object") {
         throw new Error("The AI did not return a usable diagnosis. Please try again.");
       }
+      if (user?.uid) clearQueuedDiseaseScan(user.uid);
+      setQueuedScan(false);
+      setQueuedLanguage(null);
       setResult(data.result);
 
       // Save to store history
@@ -212,14 +255,13 @@ export default function DiseaseDetectionPage() {
     } catch (err: unknown) {
       setResult(null);
       const timedOut = err instanceof DOMException && err.name === "TimeoutError";
-      setErrorMsg(
+      if (!navigator.onLine || err instanceof TypeError) saveForOfflineRetry();
+      else setErrorMsg(
         timedOut
           ? "This scan is taking longer than expected. Your image is still selected; please try again."
-          : err instanceof TypeError
-            ? "Could not reach the AI service. Check your internet connection and try again."
-            : err instanceof Error
-              ? err.message
-              : "Failed to scan disease. Please try again."
+          : err instanceof Error
+            ? err.message
+            : "Failed to scan disease. Please try again."
       );
     } finally {
       window.clearInterval(ticker);
@@ -379,7 +421,7 @@ export default function DiseaseDetectionPage() {
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
               <span className="flex min-w-0 items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{errorMsg}</span>
+                <span>{queuedScan && <strong className="mr-1 text-amber-200">Saved for retry.</strong>}{errorMsg}</span>
               </span>
               {selectedImage && (
                 <Button type="button" variant="outline" size="sm" onClick={handleScan} disabled={analyzing}>
@@ -402,7 +444,7 @@ export default function DiseaseDetectionPage() {
               {SCANNING_STAGES[stageIndex]}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              If Gemini 3.5 Flash-Lite is busy or unavailable, Gemini 3.8 Flash is tried automatically.
+              If Gemini 3.8 Flash is busy or unavailable, Gemini 3.5 Flash-Lite is tried automatically.
             </p>
             <div className="w-full bg-slate-100 rounded-full h-2 max-w-xs mx-auto overflow-hidden dark:bg-slate-800">
               <div

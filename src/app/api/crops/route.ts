@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { DEMO_CROPS, isDemoUserId } from "@/lib/demo/demo-data";
 
 const cropSchema = z.object({
   farmId: z.string().regex(/^\d+$/),
@@ -58,6 +59,7 @@ export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) return NextResponse.json({ crops: DEMO_CROPS });
   try {
     const crops = await prisma.crop.findMany({
       where: { farm: { ownerId: userId } },
@@ -75,6 +77,9 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) {
+    return NextResponse.json({ error: "The live demo is read-only. Create an account to add or edit crops." }, { status: 403 });
+  }
   let payload: unknown;
   try { payload = await request.json(); } catch { return NextResponse.json({ error: "A valid crop record is required." }, { status: 400 }); }
   const parsed = cropSchema.safeParse(payload);

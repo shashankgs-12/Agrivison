@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isDemoUserId } from "@/lib/demo/demo-data";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ farmId: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  if (isDemoUserId(userId)) return NextResponse.json({ error: "The live demo is read-only." }, { status: 403 });
   const { farmId } = await params;
   if (!/^\d+$/.test(farmId)) return NextResponse.json({ error: "The selected farm ID is invalid." }, { status: 400 });
 
