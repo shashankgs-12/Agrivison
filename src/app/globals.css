@@ -10,7 +10,7 @@
   width: 100% !important;
   height: 100% !important;
   z-index: 1;
-  background-color: #020617 !important;
+  background-color: var(--bg-canvas) !important;
   font-family: inherit !important;
   touch-action: pan-x pan-y;
 }
@@ -42,20 +42,20 @@
 }
 
 @theme inline {
-  /* --- Colors: Brand Greens (#008631 & #00ab41) --- */
-  --color-primary: #008631;
-  --color-primary-dark: #006825;
-  --color-primary-light: #e6f7ec;
-  --color-primary-50: #f0fbf4;
-  --color-primary-100: #d6f4e0;
-  --color-primary-200: #a9e6c1;
-  --color-primary-300: #71d49c;
-  --color-primary-400: #00ab41;
-  --color-primary-500: #008631;
-  --color-primary-600: #00762b;
-  --color-primary-700: #006023;
-  --color-primary-800: #004b1c;
-  --color-primary-900: #003714;
+  /* Shared semantic colors adapt to the persisted light/dark theme. */
+  --color-primary: var(--accent-primary);
+  --color-primary-dark: var(--accent-primary-hover);
+  --color-primary-light: var(--accent-primary-soft);
+  --color-primary-50: var(--accent-primary-soft);
+  --color-primary-100: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-surface));
+  --color-primary-200: color-mix(in srgb, var(--accent-primary) 24%, var(--bg-surface));
+  --color-primary-300: color-mix(in srgb, var(--accent-primary) 48%, var(--bg-surface));
+  --color-primary-400: var(--accent-primary);
+  --color-primary-500: var(--accent-primary);
+  --color-primary-600: var(--accent-primary-hover);
+  --color-primary-700: var(--accent-primary-hover);
+  --color-primary-800: #14532d;
+  --color-primary-900: #052e16;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -63,12 +63,12 @@
   --color-border: var(--border-color);
 
   --color-text-primary: var(--foreground);
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
 
   --color-accent-red: #ef4444;
-  --color-accent-amber: #f59e0b;
-  --color-accent-blue: #3b82f6;
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-blue: var(--accent-sky);
 
   /* --- Fonts --- */
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -89,21 +89,166 @@
 }
 
 /* ============================================
-   CSS Custom Properties — Perfect Light & Dark
+   Organic Precision design tokens
    ============================================ */
 
 :root {
-  --background: #ffffff;       /* Perfect White in light mode */
-  --foreground: #09090b;
-  --surface: #ffffff;
-  --border-color: #e4e4e7;
+  color-scheme: light;
+  --bg-canvas: #f5f7f4;
+  --bg-chrome: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f0f4f1;
+  --border-subtle: #dce5df;
+  --border-accent: rgb(21 128 61 / 0.28);
+  --accent-primary: #15803d;
+  --accent-primary-hover: #166534;
+  --accent-primary-soft: #e8f3eb;
+  --accent-amber: #d97706;
+  --accent-sky: #0284c7;
+  --text-primary: #0f1f17;
+  --text-secondary: #4b6358;
+  --text-muted: #64786d;
+  --background: var(--bg-canvas);
+  --foreground: var(--text-primary);
+  --surface: var(--bg-surface);
+  --border-color: var(--border-subtle);
+
+  /* Warm, green-shifted neutral palette for light mode. */
+  --color-slate-50: #f5f7f4;
+  --color-slate-100: #edf2ee;
+  --color-slate-200: #dce5df;
+  --color-slate-300: #c5d2c9;
+  --color-slate-400: #91a297;
+  --color-slate-500: #718579;
+  --color-slate-600: #4b6358;
+  --color-slate-700: #344c3e;
+  --color-slate-800: #20372a;
+  --color-slate-900: #14251b;
+  --color-slate-950: #0a110e;
+  --color-zinc-50: #f5f7f4;
+  --color-zinc-100: #edf2ee;
+  --color-zinc-200: #dce5df;
+  --color-zinc-300: #c5d2c9;
+  --color-zinc-400: #91a297;
+  --color-zinc-500: #718579;
+  --color-zinc-600: #4b6358;
+  --color-zinc-700: #344c3e;
+  --color-zinc-800: #20372a;
+  --color-zinc-900: #14251b;
+  --color-zinc-950: #0a110e;
+  --color-emerald-500: #16a34a;
+  --color-emerald-600: #15803d;
+  --color-emerald-700: #166534;
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #f4f4f5;
-  --surface: #0a0a0a;
-  --border-color: #1f1f23;
+  color-scheme: dark;
+  --bg-canvas: #0a110e;
+  --bg-chrome: #0e1713;
+  --bg-surface: #131f1a;
+  --bg-surface-elevated: #182721;
+  --border-subtle: rgb(255 255 255 / 0.07);
+  --border-accent: rgb(52 211 153 / 0.25);
+  --accent-primary: #10b981;
+  --accent-primary-hover: #34d399;
+  --accent-primary-soft: rgb(16 185 129 / 0.12);
+  --accent-amber: #f59e0b;
+  --accent-sky: #38bdf8;
+  --text-primary: #f3f6f4;
+  --text-secondary: #9cafa6;
+  --text-muted: #84988e;
+  --background: var(--bg-canvas);
+  --foreground: var(--text-primary);
+  --surface: var(--bg-surface);
+  --border-color: var(--border-subtle);
+
+  /* Rebase the existing Tailwind neutral utilities so all current routes
+     inherit the same forest surfaces without changing component behavior. */
+  --color-black: var(--bg-canvas);
+  --color-slate-50: var(--bg-surface);
+  --color-slate-100: var(--bg-surface-elevated);
+  --color-slate-200: #263a30;
+  --color-slate-300: #c5d2ca;
+  --color-slate-400: #9cafa6;
+  --color-slate-500: #84988e;
+  --color-slate-600: #71877b;
+  --color-slate-700: #50675a;
+  --color-slate-800: var(--bg-surface-elevated);
+  --color-slate-900: var(--bg-surface);
+  --color-slate-950: var(--bg-canvas);
+  --color-zinc-50: var(--bg-surface);
+  --color-zinc-100: var(--bg-surface-elevated);
+  --color-zinc-200: #263a30;
+  --color-zinc-300: #c5d2ca;
+  --color-zinc-400: #9cafa6;
+  --color-zinc-500: #84988e;
+  --color-zinc-600: #71877b;
+  --color-zinc-700: #50675a;
+  --color-zinc-800: var(--bg-surface-elevated);
+  --color-zinc-900: var(--bg-surface);
+  --color-zinc-950: var(--bg-chrome);
+  --color-gray-50: var(--bg-surface);
+  --color-gray-100: var(--bg-surface-elevated);
+  --color-gray-200: #263a30;
+  --color-gray-300: #c5d2ca;
+  --color-gray-400: #9cafa6;
+  --color-gray-500: #84988e;
+  --color-gray-600: #71877b;
+  --color-gray-700: #50675a;
+  --color-gray-800: var(--bg-surface-elevated);
+  --color-gray-900: var(--bg-surface);
+  --color-gray-950: var(--bg-canvas);
+  --color-emerald-500: #34d399;
+  --color-emerald-600: #10b981;
+  --color-emerald-700: #059669;
+}
+
+/* Some older pages use text and background utilities from the same neutral
+   scale. Keep text contrast semantic after the dark surface palette is rebased. */
+.dark :is(
+  [class~="text-slate-50"], [class~="text-slate-100"], [class~="text-slate-200"],
+  [class~="text-slate-300"], [class~="text-slate-800"], [class~="text-slate-900"],
+  [class~="text-slate-950"], [class~="dark:text-slate-50"], [class~="dark:text-slate-100"],
+  [class~="dark:text-slate-200"], [class~="dark:text-slate-300"], [class~="dark:text-slate-800"],
+  [class~="dark:text-slate-900"], [class~="dark:text-slate-950"],
+  [class~="text-zinc-50"], [class~="text-zinc-100"], [class~="text-zinc-200"],
+  [class~="text-zinc-300"], [class~="text-zinc-800"], [class~="text-zinc-900"],
+  [class~="text-zinc-950"], [class~="dark:text-zinc-50"], [class~="dark:text-zinc-100"],
+  [class~="dark:text-zinc-200"], [class~="dark:text-zinc-300"], [class~="dark:text-zinc-800"],
+  [class~="dark:text-zinc-900"], [class~="dark:text-zinc-950"],
+  [class~="text-gray-50"], [class~="text-gray-100"], [class~="text-gray-200"],
+  [class~="text-gray-300"], [class~="text-gray-800"], [class~="text-gray-900"],
+  [class~="dark:text-gray-50"], [class~="dark:text-gray-100"], [class~="dark:text-gray-200"],
+  [class~="dark:text-gray-300"], [class~="dark:text-gray-800"], [class~="dark:text-gray-900"]
+) {
+  color: var(--text-primary);
+}
+
+.dark :is(
+  [class~="text-slate-400"], [class~="text-slate-600"], [class~="text-slate-700"],
+  [class~="dark:text-slate-400"], [class~="dark:text-slate-600"], [class~="dark:text-slate-700"],
+  [class~="text-zinc-400"], [class~="text-zinc-600"], [class~="text-zinc-700"],
+  [class~="dark:text-zinc-400"], [class~="dark:text-zinc-600"], [class~="dark:text-zinc-700"],
+  [class~="text-gray-400"], [class~="text-gray-600"], [class~="text-gray-700"],
+  [class~="dark:text-gray-400"], [class~="dark:text-gray-600"], [class~="dark:text-gray-700"]
+) {
+  color: var(--text-secondary);
+}
+
+.dark :is(
+  [class~="text-slate-500"], [class~="dark:text-slate-500"],
+  [class~="text-zinc-500"], [class~="dark:text-zinc-500"],
+  [class~="text-gray-500"], [class~="dark:text-gray-500"]
+) {
+  color: var(--text-muted);
+}
+
+.dark [class~="bg-white"]:not([class*="dark:bg-"]) {
+  background-color: var(--bg-surface);
+}
+
+.dark [class*="bg-white/"]:not([class*="dark:bg-"]) {
+  background-color: color-mix(in srgb, var(--bg-surface) 88%, transparent);
 }
 
 /* ============================================
@@ -114,6 +259,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+:root:not(.dark) :is(
+  [class~="min-h-screen"][class~="bg-white"],
+  [class~="min-h-dvh"][class~="bg-white"]
+) {
+  background-color: var(--bg-canvas);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -132,11 +285,11 @@ body {
    ============================================ */
 
 .glass {
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
   -webkit-backdrop-filter: saturate(150%) blur(10px);
   backdrop-filter: saturate(150%) blur(10px);
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, white 30%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 10px 32px rgb(2 6 23 / 0.1);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 32px rgb(0 0 0 / 0.18);
 }
 
 .glass-chrome {
@@ -148,15 +301,29 @@ body {
 }
 
 .liquid-glass-panel {
-  background-image: linear-gradient(145deg, rgb(255 255 255 / 0.08), transparent 52%);
+  background-color: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  background-image: linear-gradient(145deg, rgb(255 255 255 / 0.06), transparent 52%);
   -webkit-backdrop-filter: saturate(140%) blur(12px);
   backdrop-filter: saturate(140%) blur(12px);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 18px 48px rgb(2 6 23 / 0.28);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 18px 48px rgb(0 0 0 / 0.3);
 }
 
 .liquid-surface {
   background-image: linear-gradient(145deg, rgb(255 255 255 / 0.035), transparent 54%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.055), 0 12px 28px rgb(2 6 23 / 0.1);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.055), 0 12px 28px rgb(0 0 0 / 0.16);
+}
+
+.dark .rounded-2xl.border {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .dark .rounded-2xl.border:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-1px);
+  }
 }
 
 button,
@@ -276,11 +443,11 @@ button:not(:disabled):active {
 .animate-skeleton-shimmer {
   position: relative;
   overflow: hidden;
-  background-color: #e2e8f0;
+  background-color: var(--bg-surface-elevated);
 }
 
 .dark .animate-skeleton-shimmer {
-  background-color: #1e293b;
+  background-color: var(--bg-surface-elevated);
 }
 
 .animate-skeleton-shimmer::after {

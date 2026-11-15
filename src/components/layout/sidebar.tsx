@@ -57,7 +57,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-dvh bg-white border-r border-zinc-200 transition-all duration-300 ease-in-out flex flex-col justify-between dark:bg-black dark:border-zinc-800 hidden md:flex",
+        "fixed left-0 top-0 z-40 h-dvh bg-white border-r border-zinc-200 transition-all duration-300 ease-in-out flex flex-col justify-between dark:bg-[var(--bg-chrome)] dark:border-zinc-800 hidden md:flex",
         sidebarOpen ? "w-64" : "w-20"
       )}
     >
@@ -76,7 +76,7 @@ export function Sidebar() {
             {sidebarOpen && (
               <div className="flex flex-col">
                 <span className="font-bold text-zinc-900 text-lg leading-tight dark:text-white">
-                  AgriVision<span className="text-[#00ab41]">.AI</span>
+                  AgriVision<span className="text-emerald-600 dark:text-emerald-400">.AI</span>
                 </span>
                 <span className="text-[10px] text-zinc-500 font-medium tracking-wide uppercase">
                   Smart Farming
@@ -113,19 +113,19 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative",
                   isActive
-                    ? "bg-[#008631]/10 text-[#00ab41] font-bold dark:bg-[#00ab41]/15 dark:text-[#00ab41]"
+                    ? "bg-emerald-50 text-emerald-700 font-bold dark:bg-emerald-500/15 dark:text-emerald-300"
                     : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
                 )}
               >
                 {/* Active Indicator Bar */}
                 {isActive && (
-                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#00ab41] rounded-r-full" />
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-emerald-500 rounded-r-full" />
                 )}
                 <Icon
                   className={cn(
                     "h-5 w-5 shrink-0 transition-colors",
                     isActive
-                      ? "text-[#00ab41]"
+                      ? "text-emerald-600 dark:text-emerald-400"
                       : "text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-200"
                   )}
                 />

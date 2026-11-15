@@ -80,7 +80,7 @@ export function StatCards() {
         return (
           <div
             key={stat.id}
-            className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:p-5 dark:border-slate-800 dark:bg-slate-900"
+            className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500/30 hover:shadow-md md:p-5 dark:border-slate-800 dark:bg-slate-900"
           >
             <div className="flex items-start justify-between mb-3">
               <div

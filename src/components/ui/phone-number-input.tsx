@@ -284,7 +284,7 @@ export function PhoneNumberInput({
                   : undefined,
               maxHeight: countryMenuPosition.maxHeight,
             }}
-            className="z-[100] flex max-w-[calc(100vw_-_1.5rem)] flex-col overflow-hidden rounded-2xl border border-emerald-900/20 bg-white shadow-[0_18px_48px_rgba(2,6,23,0.38)] ring-1 ring-black/5 dark:border-slate-700/90 dark:bg-[#0b1220] dark:ring-white/5"
+            className="z-[100] flex max-w-[calc(100vw_-_1.5rem)] flex-col overflow-hidden rounded-2xl border border-emerald-900/20 bg-white shadow-[0_18px_48px_rgba(2,6,23,0.38)] ring-1 ring-black/5 dark:border-slate-700/90 dark:bg-slate-900 dark:ring-white/5"
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-3.5 py-2.5 dark:border-slate-800">
               <div className="text-sm font-bold text-slate-900 dark:text-white">

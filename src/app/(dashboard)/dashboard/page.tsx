@@ -33,7 +33,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Header */}
-      <div className="relative isolate overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/70 via-slate-900 to-slate-950 p-5 shadow-lg shadow-emerald-950/20 sm:p-6">
+      <div className="relative isolate overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-slate-900/90 to-slate-950 p-5 shadow-lg shadow-emerald-950/20 sm:p-6">
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -49,7 +49,7 @@ export default function DashboardPage() {
             </p>
           </div>
           {!isDemoUserId(user?.uid) && <Link href="/farms/add" className="self-start sm:self-auto">
-            <Button size="sm" className="min-h-11 rounded-xl bg-emerald-500 px-5 font-bold text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400">
+            <Button size="sm" className="min-h-11 rounded-xl bg-primary px-5 font-bold text-white shadow-lg shadow-emerald-950/40 hover:bg-primary-dark">
               <Plus className="mr-1 h-4 w-4" />
               {copy.addFarm}
             </Button>

@@ -21,7 +21,7 @@ export default function AuthLayout({
             className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 object-contain"
           />
           <span className="font-bold text-lg sm:text-xl text-zinc-900 dark:text-white tracking-tight">
-            AgriVision<span className="text-[#00ab41]">.AI</span>
+            AgriVision<span className="text-emerald-600 dark:text-emerald-400">.AI</span>
           </span>
         </Link>
       </div>

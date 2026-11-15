@@ -124,7 +124,7 @@ export default function SignupPage() {
 
   return (
     <div className="w-full max-w-md animate-fade-in">
-      <div className="bg-white dark:bg-black rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 mb-2 sm:mb-3">
@@ -140,7 +140,7 @@ export default function SignupPage() {
 
         {/* Success Banner */}
         {successMessage && (
-          <div className="mb-4 p-3 bg-[#008631]/10 border border-[#00ab41] rounded-xl flex items-center gap-2 text-xs font-bold text-[#00ab41] animate-fade-in">
+          <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-500/40 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 animate-fade-in">
             <CheckCircle className="h-4 w-4 shrink-0" />
             Account created successfully! Redirecting to Dashboard...
           </div>
@@ -256,7 +256,7 @@ export default function SignupPage() {
           aria-busy={isLoading}
           onClick={handleGoogleSignUp}
         >
-          <Globe className="h-5 w-5 text-[#00ab41]" />
+          <Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           {isLoading
             ? "Connecting to Google…"
             : googleProviderStatus === "unavailable"
@@ -278,7 +278,7 @@ export default function SignupPage() {
           Already have an account?{" "}
           <Link
             href="/login"
-            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-[#00ab41] hover:underline"
+            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-emerald-700 hover:underline dark:text-emerald-300"
           >
             Sign In
           </Link>

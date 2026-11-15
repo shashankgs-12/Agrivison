@@ -326,7 +326,7 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md animate-fade-in">
-      <div className="bg-white dark:bg-black rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-8">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-extrabold text-zinc-900 tracking-tight dark:text-white">
@@ -357,7 +357,7 @@ export default function LoginPage() {
 
         {/* Success Banner */}
         {successMessage && (
-          <div className="mb-4 p-3 bg-[#008631]/10 border border-[#00ab41] rounded-xl flex items-center gap-2 text-xs font-bold text-[#00ab41] animate-fade-in">
+          <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-500/40 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 animate-fade-in">
             <CheckCircle className="h-4 w-4 shrink-0" />
             Signed in successfully! Redirecting to dashboard...
           </div>
@@ -367,7 +367,7 @@ export default function LoginPage() {
         <div
           role="tablist"
           aria-label="Sign-in method"
-          className="mb-4 flex rounded-xl border border-zinc-200/80 bg-zinc-100/70 p-1 shadow-inner shadow-black/5 dark:border-zinc-800 dark:bg-[#090d0b] sm:mb-6"
+          className="mb-4 flex rounded-xl border border-zinc-200/80 bg-zinc-100/70 p-1 shadow-inner shadow-black/5 dark:border-zinc-800 dark:bg-slate-950 sm:mb-6"
         >
           <button
             type="button"
@@ -467,7 +467,7 @@ export default function LoginPage() {
               </span>
               <Link
                 href="/forgot-password"
-                className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-[#00ab41] hover:underline"
+                className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
               >
                 Forgot Password?
               </Link>
@@ -484,7 +484,7 @@ export default function LoginPage() {
                   <div className="pt-1 text-right">
                     <Link
                       href="/forgot-password"
-                      className="inline-block text-[11px] font-extrabold text-[#00ab41] underline hover:text-[#008631]"
+                      className="inline-block text-[11px] font-extrabold text-emerald-700 underline hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                     >
                       🔑 Reset your password via Forgot Password →
                     </Link>
@@ -538,7 +538,7 @@ export default function LoginPage() {
                 type="checkbox"
                 checked={smsConsent}
                 onChange={(event) => setSmsConsent(event.target.checked)}
-                className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-300 text-[#00ab41] focus:ring-[#00ab41]"
+                className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
               />
               <span>
                 I agree to receive one SMS verification code. Standard message rates may apply.
@@ -597,7 +597,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={handleSendPhoneCode}
                     disabled={isPhoneLoading || resendSeconds > 0}
-                    className="inline-flex min-h-11 touch-manipulation items-center font-semibold text-[#00ab41] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-11 touch-manipulation items-center font-semibold text-emerald-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-300"
                   >
                     {resendSeconds > 0 ? `Resend in 0:${String(resendSeconds).padStart(2, "0")}` : "Resend code"}
                   </button>
@@ -658,7 +658,7 @@ export default function LoginPage() {
             window.location.assign(result.url);
           }}
         >
-          <Globe className="h-5 w-5 text-[#00ab41]" />
+          <Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           {isGoogleLoading ? "Connecting to Google…" : "Continue with Google"}
         </Button>
         {/* Sign up link */}
@@ -666,7 +666,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{" "}
           <Link
             href="/signup"
-            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-[#00ab41] hover:underline"
+            className="inline-flex min-h-11 touch-manipulation items-center font-bold text-emerald-700 hover:underline dark:text-emerald-300"
           >
             Create Account
           </Link>

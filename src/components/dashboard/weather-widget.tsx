@@ -36,7 +36,7 @@ export function WeatherWidget() {
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
       <div className="px-4 pt-3"><OfflineModeBadge cachedData={offlineMode} hasCachedData={Boolean(weather)} /></div>
       {/* Header Banner */}
-      <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-green-700 p-5 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[#133829] via-[#0e2a20] to-[#0e221b] p-5 text-white relative overflow-hidden">
         <div className="flex items-center justify-between gap-2 mb-2 relative z-10">
           <div className="flex items-center gap-1.5 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold">
             <MapPin className="h-3.5 w-3.5 text-amber-300" />
