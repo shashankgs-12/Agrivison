@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateTextWithGemini, GeminiServiceError } from "@/lib/ai/gemini";
+import {
+  generateTextWithGemini,
+  GeminiServiceError,
+  getGeminiServiceErrorResponse,
+} from "@/lib/ai/gemini";
 
 export const maxDuration = 60;
 import { PROMPTS } from "@/lib/ai/prompts";
@@ -43,23 +47,8 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error("AI Chat Error:", error instanceof Error ? error.name : "unknown error");
     if (error instanceof GeminiServiceError) {
-      const status = error.retryable
-        ? error.reason === "rate_limited"
-          ? 429
-          : error.status === 504
-            ? 504
-            : 503
-        : 502;
-      const message = error.reason === "rate_limited"
-        ? "The AI request limit has been reached. Try again later; if this continues, check the Gemini API quota for this project."
-        : error.reason === "permission_denied"
-          ? "The configured AI key does not have permission to use the Gemini API. Check the key’s project and API access."
-          : error.reason === "model_unavailable"
-            ? "The configured AI models are unavailable to this project. Check Gemini model access and try again."
-            : error.retryable
-              ? "The AI service is temporarily unavailable. Please try again shortly."
-              : "The AI could not process this request. Please try again.";
-      return NextResponse.json({ error: message }, { status });
+      const { status, message, code, retryable } = getGeminiServiceErrorResponse(error);
+      return NextResponse.json({ error: message, code, retryable }, { status });
     }
     return NextResponse.json(
       {

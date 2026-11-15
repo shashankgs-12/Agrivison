@@ -1,8 +1,9 @@
 import {
+  getGeminiServiceErrorResponse,
   runGeminiModelFallback,
 } from "@/lib/ai/gemini-model-fallback";
 
-export { GeminiServiceError } from "@/lib/ai/gemini-model-fallback";
+export { GeminiServiceError, getGeminiServiceErrorResponse } from "@/lib/ai/gemini-model-fallback";
 
 /** The REST endpoint supplies the `models/` path segment; entries stay bare IDs. */
 export const GEMINI_IMAGE_MODELS = [
@@ -122,31 +123,54 @@ async function postGeminiWithFallback(
   const { value } = await runGeminiModelFallback({
     models,
     attempt: async (model) => {
-      for (let retry = 0; retry <= 1; retry += 1) {
+      let activeBody = requestBody;
+      let compatibilityRetryUsed = false;
+      let transientRetryUsed = false;
+      while (true) {
         const remaining = deadline - Date.now();
         if (remaining <= 0) {
           throw new GeminiApiAttemptError(504, "Gemini request exceeded its time budget.", "TIMEOUT");
         }
         try {
           return await requestGeminiModel(
-            requestBody,
+            activeBody,
             model,
             apiKey,
             Math.min(GEMINI_REQUEST_TIMEOUT_MS, remaining)
           );
         } catch (error) {
           const status = error instanceof GeminiApiAttemptError ? error.status : undefined;
-          if (retry === 0 && (status === 429 || status === 503)) {
-            const backoffMs = 500 * 2 ** retry;
+          const sourceBody = requestBody as {
+            generationConfig?: Record<string, unknown>;
+            [key: string]: unknown;
+          };
+          const hasStructuredSchema = Boolean(sourceBody.generationConfig?.responseSchema);
+          if (status === 400 && hasStructuredSchema && !compatibilityRetryUsed) {
+            const compatibleConfig = { ...(sourceBody.generationConfig ?? {}) };
+            delete compatibleConfig.responseSchema;
+            delete compatibleConfig.thinkingConfig;
+            activeBody = {
+              ...sourceBody,
+              generationConfig: {
+                ...compatibleConfig,
+                responseMimeType: compatibleConfig.responseMimeType ?? "application/json",
+              },
+            };
+            compatibilityRetryUsed = true;
+            console.warn(`[Gemini] task=${task} model=${model} retrying with JSON mode after schema validation rejection`);
+            continue;
+          }
+          if (!transientRetryUsed && (status === 429 || status === 503)) {
+            const backoffMs = 500;
             if (deadline - Date.now() > backoffMs) {
               await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              transientRetryUsed = true;
               continue;
             }
           }
           throw error;
         }
       }
-      throw new GeminiApiAttemptError(502, "Gemini request failed.");
     },
     onAttempt: (model, attemptNumber, attemptLimit) => {
       console.info(
@@ -160,7 +184,7 @@ async function postGeminiWithFallback(
     },
     onFailure: (model, failure) => {
       console.error(
-        `[Gemini] task=${task} model=${model} failed status=${failure.status} reason=${failure.reason}`
+        `[Gemini] task=${task} model=${model} failed status=${failure.status} reason=${failure.reason} providerCode=${failure.providerCode ?? "unknown"} providerMessage=${maskApiKey(failure.providerMessage ?? "", apiKey).replace(/[\r\n\t]+/g, " ").slice(0, 500)}`
       );
     },
   });

@@ -13,6 +13,8 @@ export interface GeminiFailureClassification {
   retryable: boolean;
   status: number;
   reason: GeminiFailureReason;
+  providerCode?: string;
+  providerMessage?: string;
 }
 
 export interface GeminiFallbackEvent {
@@ -28,6 +30,8 @@ export class GeminiServiceError extends Error {
   readonly retryable: boolean;
   readonly reason: GeminiFailureReason;
   readonly attemptedModels: readonly string[];
+  readonly providerCode?: string;
+  readonly providerMessage?: string;
 
   constructor(failure: GeminiFailureClassification, attemptedModels: readonly string[]) {
     super(
@@ -41,6 +45,8 @@ export class GeminiServiceError extends Error {
     this.retryable = failure.retryable;
     this.reason = failure.reason;
     this.attemptedModels = attemptedModels;
+    this.providerCode = failure.providerCode;
+    this.providerMessage = failure.providerMessage;
   }
 }
 
@@ -72,9 +78,13 @@ function readFailureDetails(error: unknown): {
 export function classifyGeminiFailure(error: unknown): GeminiFailureClassification {
   const { status, message, code, name } = readFailureDetails(error);
   const details = `${message} ${code}`.toLowerCase();
+  const providerDetails = {
+    ...(code ? { providerCode: code.slice(0, 120) } : {}),
+    ...(message ? { providerMessage: message.slice(0, 500) } : {}),
+  };
 
   if (name === "TimeoutError" || name === "AbortError" || status === 408 || status === 504) {
-    return { retryable: true, status: status ?? 504, reason: "timeout" };
+    return { retryable: true, status: status ?? 504, reason: "timeout", ...providerDetails };
   }
 
   if (
@@ -83,37 +93,66 @@ export function classifyGeminiFailure(error: unknown): GeminiFailureClassificati
     ) ||
     code.toLowerCase() === "not_found_model"
   ) {
-    return { retryable: true, status: status ?? 404, reason: "model_unavailable" };
+    return { retryable: true, status: status ?? 404, reason: "model_unavailable", ...providerDetails };
+  }
+
+  if (/api[_ ]?key.{0,30}(invalid|not valid)|invalid.{0,30}api[_ ]?key/i.test(details)) {
+    return { retryable: false, status: status ?? 403, reason: "permission_denied", ...providerDetails };
   }
 
   if (
     code.toLowerCase() === "resource_exhausted" ||
     status === 429
   ) {
-    return { retryable: true, status: status ?? 429, reason: "rate_limited" };
+    return { retryable: true, status: status ?? 429, reason: "rate_limited", ...providerDetails };
   }
 
   if (/overload(?:ed)?|high demand|capacity exhausted|temporarily unavailable/i.test(details)) {
-    return { retryable: true, status: status ?? 503, reason: "overloaded" };
+    return { retryable: true, status: status ?? 503, reason: "overloaded", ...providerDetails };
   }
 
   if (status !== undefined && status >= 500 && status <= 599) {
-    return { retryable: true, status, reason: "temporary_server_error" };
+    return { retryable: true, status, reason: "temporary_server_error", ...providerDetails };
   }
 
   if (name === "TypeError" && status === undefined) {
-    return { retryable: true, status: 503, reason: "network_error" };
+    return { retryable: true, status: 503, reason: "network_error", ...providerDetails };
   }
 
   if (status === 400 || status === 413 || status === 422) {
-    return { retryable: false, status, reason: "invalid_request" };
+    return { retryable: false, status, reason: "invalid_request", ...providerDetails };
   }
 
   if (status === 401 || status === 403) {
-    return { retryable: false, status, reason: "permission_denied" };
+    return { retryable: false, status, reason: "permission_denied", ...providerDetails };
   }
 
-  return { retryable: false, status: status ?? 502, reason: "api_error" };
+  return { retryable: false, status: status ?? 502, reason: "api_error", ...providerDetails };
+}
+
+export function getGeminiServiceErrorResponse(error: GeminiServiceError) {
+  const status = error.retryable
+    ? error.reason === "rate_limited"
+      ? 429
+      : error.status === 504
+        ? 504
+        : 503
+    : 502;
+  const message = error.reason === "rate_limited"
+    ? "The Gemini project has reached its request quota or rate limit. Check the project quota and try again later."
+    : error.reason === "permission_denied"
+      ? "The Gemini API key is invalid or lacks API access. Check GEMINI_API_KEY and the key’s Google project settings."
+      : error.reason === "model_unavailable"
+        ? "The Gemini project cannot access the configured models. Check model access in Google AI Studio."
+        : error.reason === "invalid_request"
+          ? "Gemini rejected the request configuration. Check the server logs for the provider’s specific validation message."
+          : error.reason === "timeout"
+            ? "The Gemini request took too long. The selected image is still available; please retry."
+            : error.retryable
+              ? "Gemini is temporarily unavailable. Please try again shortly."
+              : "Gemini could not process this request. Check the server logs for the provider’s specific error.";
+
+  return { status, message, code: error.reason, retryable: error.retryable };
 }
 
 export async function runGeminiModelFallback<T>(options: {

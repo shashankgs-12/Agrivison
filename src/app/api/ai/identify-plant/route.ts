@@ -1,5 +1,9 @@
 import { after, NextRequest, NextResponse } from "next/server";
-import { analyzeImageWithGemini, GeminiServiceError } from "@/lib/ai/gemini";
+import {
+  analyzeImageWithGemini,
+  GeminiServiceError,
+  getGeminiServiceErrorResponse,
+} from "@/lib/ai/gemini";
 
 export const maxDuration = 60;
 import { PROMPTS } from "@/lib/ai/prompts";
@@ -224,27 +228,13 @@ export async function POST(req: NextRequest) {
     console.error("Plant Identification Error:", error);
 
     if (error instanceof GeminiServiceError) {
-      const status = error.retryable
-        ? error.reason === "rate_limited"
-          ? 429
-          : error.status === 504
-            ? 504
-            : 503
-        : 502;
-      const message = error.reason === "rate_limited"
-        ? "The AI request limit has been reached. Try again later; if this continues, check the Gemini API quota for this project."
-        : error.reason === "model_unavailable"
-          ? "The configured AI models are unavailable to this project. Check Gemini model access and try again."
-          : error.retryable
-            ? "The AI service is busy or taking too long. Your image is still selected; please try again shortly."
-            : error.reason === "permission_denied"
-              ? "The configured AI key does not have permission to use the Gemini API. Check the key’s project and API access."
-              : "The AI could not process this image. Please try again with a clear JPEG, PNG, or WebP plant photo.";
+      const { status, message, code, retryable } = getGeminiServiceErrorResponse(error);
       return NextResponse.json(
         {
           success: false,
-          retryable: error.retryable,
-          isBusy: error.retryable,
+          code,
+          retryable,
+          isBusy: retryable,
           error: message,
         },
         { status }
